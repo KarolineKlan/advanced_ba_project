@@ -6,6 +6,8 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision import transforms
 from PIL import Image
 import matplotlib.pyplot as plt
+from torch.utils.data import Subset
+import random
 
 
 class ForestDataset(Dataset):
@@ -67,15 +69,14 @@ def get_dataloaders(
     batch_size: int = 32, 
     img_dim: int = 256, 
     train_ratio: float = 0.85, 
-    seed: int = 42
+    seed: int = 42,
+    subset: bool = False
 ):
-    """Creates train and validation dataloaders by splitting the dataset."""
-    
-    # Define transformations
+    """Creates train and validation dataloaders, optionally limiting dataset size for testing."""
     transform = transforms.Compose([
         transforms.Resize((img_dim, img_dim)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),  # Normalize between -1 and 1
+        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
     ])
 
     target_transform = transforms.Compose([
@@ -86,20 +87,22 @@ def get_dataloaders(
     # Load full dataset
     full_dataset = ForestDataset(data_path, metadata_file, transform=transform, target_transform=target_transform)
 
-    # Split dataset into train and validation
-    total_size = len(full_dataset)
-    train_size = int(train_ratio * total_size)
-    val_size = total_size - train_size
+    # Reduce dataset size for quick testing
+    if subset:
+        torch.manual_seed(seed)
+        indices = random.sample(range(len(full_dataset)), min(len(full_dataset), 120))  # 100 train, 20 val
+        full_dataset = Subset(full_dataset, indices)
 
-    # Ensure reproducibility
-    torch.manual_seed(seed)
+    # Split into train/validation
+    train_size = int(train_ratio * len(full_dataset))
+    val_size = len(full_dataset) - train_size
     train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
 
-    # Create dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+    # Reduce batch size
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
-    print(f"Total samples: {total_size} | Train: {train_size} | Val: {val_size}")
+    print(f"Using Small Dataset - Train: {len(train_dataset)}, Val: {len(val_dataset)}")
     
     return train_loader, val_loader
 
