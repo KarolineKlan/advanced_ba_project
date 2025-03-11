@@ -1,4 +1,5 @@
 from pathlib import Path
+import datetime
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -60,6 +61,9 @@ def train_model(
 
 
 if __name__ == "__main__":
+    # Generate a timestamp for unique filenames
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
     # CLI Argument Parser
     parser = argparse.ArgumentParser(description="Train U-Net model")
     parser.add_argument("--batch-size", type=int, default=8, help="Batch size")
@@ -88,16 +92,22 @@ if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=args.num_epochs, device=device)
 
-    # Save the trained model
-    torch.save(model.state_dict(), "models/unet_model.pth")
-    log.success("Model saved as models/unet_model.pth")
+    # Ensure model and plot directories exist
+    Path("models").mkdir(parents=True, exist_ok=True)
+    Path("reports/figures").mkdir(parents=True, exist_ok=True)
 
-    # Plot loss curves
+    # Save the trained model with timestamp
+    model_path = f"models/unet_model_{timestamp}.pth"
+    torch.save(model.state_dict(), model_path)
+    log.success(f"Model saved as {model_path}")
+
+    # Save the loss plot with timestamp
+    loss_plot_path = f"reports/figures/loss_plot_{timestamp}.png"
     plt.plot(train_losses, label="Train Loss")
     plt.plot(val_losses, label="Validation Loss")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
     plt.legend()
     plt.title("Training & Validation Loss")
-    plt.savefig("reports/figures/loss_plot.png")
-    log.success("Loss plot saved as reports/figures/loss_plot.png")
+    plt.savefig(loss_plot_path)
+    log.success(f"Loss plot saved as {loss_plot_path}")
