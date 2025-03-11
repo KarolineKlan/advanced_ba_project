@@ -36,9 +36,18 @@ def preprocess_data(ctx: Context) -> None:
     ctx.run(f"python src/{PROJECT_NAME}/data.py data/raw data/processed", echo=True, pty=not WINDOWS)
 
 @task
-def train(ctx: Context) -> None:
-    """Train model."""
-    ctx.run(f"python src/{PROJECT_NAME}/train.py", echo=True, pty=not WINDOWS)
+def train(ctx: Context, batch_size=8, num_epochs=1, subset="false") -> None:
+    """Train model with specified parameters."""
+    
+    # Convert subset from string to boolean
+    subset = subset.lower() in ["true", "1", "yes"]
+    subset_flag = "--subset true" if subset else "--subset false"
+
+    # Run training script
+    ctx.run(
+        f"python src/{PROJECT_NAME}/train.py --batch-size {batch_size} --num-epochs {num_epochs} {subset_flag}",
+        echo=True,  # Invoke will show command being run, loguru will handle output
+    )
 
 @task
 def test(ctx: Context) -> None:
