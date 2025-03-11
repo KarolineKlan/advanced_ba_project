@@ -178,3 +178,7 @@ cython_debug/
 
 # Data
 data/*
+
+# Models and figures
+models/*
+reports/figures/*
