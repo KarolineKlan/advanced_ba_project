@@ -1,6 +1,6 @@
 import random
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import pandas as pd
