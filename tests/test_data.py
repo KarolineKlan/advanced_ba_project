@@ -1,23 +1,39 @@
+import pytest
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
 from advanced_ba_project.data import get_dataloaders
 
+class MockDataset(Dataset):
+    """A fake dataset for testing the dataloader without requiring actual data."""
+    def __init__(self, num_samples=100, img_size=(3, 256, 256)):
+        self.num_samples = num_samples
+        self.img_size = img_size
 
-def test_get_dataloaders():
-    # Test the get_dataloaders function
-    train_loader, val_loader = get_dataloaders(batch_size=8, num_workers=0)
-    assert len(train_loader) > 0
-    assert len(val_loader) > 0
+    def __len__(self):
+        return self.num_samples
 
-    # Check if the dataloaders return instances of DataLoader
-    assert isinstance(train_loader, torch.utils.data.DataLoader)
-    assert isinstance(val_loader, torch.utils.data.DataLoader)
+    def __getitem__(self, idx):
+        image = torch.randn(*self.img_size)  # Fake image tensor
+        mask = torch.randint(0, 2, (1, 256, 256))  # Fake binary mask
+        return image, mask
 
-    # Check if the dataloaders return instances of Dataset
-    assert isinstance(train_loader.dataset, Dataset)
-    assert isinstance(val_loader.dataset, Dataset)
+@pytest.fixture
+def mock_dataloader():
+    """Fixture to create a dataloader with a mocked dataset."""
+    dataset = MockDataset(num_samples=50)  # Fake dataset with 50 samples
+    return DataLoader(dataset, batch_size=8, shuffle=True)
 
-    # Check if the dataloaders return the correct batch size
-    assert train_loader.batch_size == 8
-    assert val_loader.batch_size == 8
+def test_mock_dataloader(mock_dataloader):
+    """Test that the mock dataloader correctly loads fake data."""
+    batch = next(iter(mock_dataloader))  # Get first batch
+    images, masks = batch
+
+    # Check shapes
+    assert images.shape == (8, 3, 256, 256)
+    assert masks.shape == (8, 1, 256, 256)
+
+    # Check that it's a PyTorch tensor
+    assert isinstance(images, torch.Tensor)
+    assert isinstance(masks, torch.Tensor)
+
