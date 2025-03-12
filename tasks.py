@@ -1,6 +1,5 @@
 import os
-
-from invoke import Context, task
+from invoke import task, Context
 
 WINDOWS = os.name == "nt"
 PROJECT_NAME = "advanced_ba_project"
@@ -40,17 +39,18 @@ def preprocess_data(ctx: Context) -> None:
 
 
 @task
-def train(ctx: Context, batch_size=8, num_epochs=1, subset="false") -> None:
-    """Train model with specified parameters."""
+def train(ctx: Context, batch_size=16, num_epochs=10, subset="false") -> None:
+    """Train the model using Invoke and Hydra with Weights & Biases always enabled."""
+    
+    # Convert subset to lowercase boolean string
+    subset_flag = "true" if subset.lower() in ["true", "1", "yes"] else "false"
 
-    # Convert subset from string to boolean
-    subset = subset.lower() in ["true", "1", "yes"]
-    subset_flag = "--subset true" if subset else "--subset false"
-
-    # Run training script
+    # Run training script with Hydra overrides (W&B always enabled)
     ctx.run(
-        f"python src/{PROJECT_NAME}/train.py --batch-size {batch_size} --num-epochs {num_epochs} {subset_flag}",
-        echo=True,  # Invoke will show command being run, loguru will handle output
+        f"python src/{PROJECT_NAME}/train.py hyperparameters.batch_size={batch_size} "
+        f"hyperparameters.num_epochs={num_epochs} dataset.subset={subset_flag}",
+        echo=True,
+        pty=os.name != "nt",
     )
 
 
