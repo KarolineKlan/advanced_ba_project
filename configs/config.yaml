@@ -1,0 +1,28 @@
+# General settings
+experiment_name: "unet_training"
+timestamp: ${now:%Y-%m-%d_%H-%M-%S}  # Automatically adds a timestamp
+
+# Training hyperparameters
+hyperparameters:
+  batch_size: 16
+  num_epochs: 10
+  learning_rate: 0.001
+  weight_decay: 0.0001
+
+# Optimizer settings
+optimizer:
+  type: "adam"  # Can be "adam", "sgd", etc.
+
+# Weights & Biases settings (Always Enabled)
+wandb:
+  entity: "AdvancedBA"
+  project: "ForestSegmentationABA"
+  mode: "online"  # Change to "offline" for HPC if needed
+  save_model: true
+  save_loss_plot: true
+
+# Data settings
+dataset:
+  data_path: "data/raw/Forest Segmented"
+  metadata_file: "meta_data.csv"
+  subset: false  # Change to true for quick testing

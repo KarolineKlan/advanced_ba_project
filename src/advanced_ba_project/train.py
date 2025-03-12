@@ -1,12 +1,13 @@
-import argparse
+import os
 import datetime
 from pathlib import Path
-
+import hydra
+import wandb
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import wandb
+from omegaconf import DictConfig
 
 from advanced_ba_project.data import get_dataloaders
 from advanced_ba_project.logger import log
@@ -44,7 +45,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         train_losses.append(epoch_loss)
         log.info(f"Train Loss: {epoch_loss:.4f}")
 
-        # Log training loss to Weights & Biases
+        # Log training loss to W&B
         wandb.log({"Train Loss": epoch_loss, "Epoch": epoch + 1})
 
         # Validation phase
@@ -62,67 +63,58 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         val_losses.append(val_loss)
         log.info(f"Validation Loss: {val_loss:.4f}")
 
-        # Log validation loss to Weights & Biases
+        # Log validation loss to W&B
         wandb.log({"Validation Loss": val_loss, "Epoch": epoch + 1})
 
     return train_losses, val_losses
 
 
-if __name__ == "__main__":
-    # Generate a timestamp for unique filenames
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+@hydra.main(config_path=f"{os.getcwd()}/configs", config_name="config", version_base="1.2")
+def main(cfg: DictConfig):
+    """Train U-Net using configuration from Hydra."""
 
-    # CLI Argument Parser
-    parser = argparse.ArgumentParser(description="Train U-Net model with Weights & Biases")
-    parser.add_argument("--batch-size", type=int, default=8, help="Batch size")
-    parser.add_argument("--num-epochs", type=int, default=1, help="Number of training epochs")
-    parser.add_argument("--subset", type=str, default="false", help="Use small subset for quick testing (true/false)")
-    args = parser.parse_args()
+    log.info(f"Using Hydra Config: {cfg}")
 
-    # Convert subset argument from string to boolean
-    subset = args.subset.lower() in ["true", "1", "yes"]
+    # Timestamp for unique model/log naming
+    timestamp = cfg.timestamp
 
-    log.info(f"Starting training with batch size {args.batch_size} for {args.num_epochs} epochs")
-
-    # Initialize Weights & Biases
+    # Initialize W&B (Always On)
     wandb.init(
-        entity="AdvancedBA",
-        project="ForestSegmentationABA",
-        name=f"train_unet_{timestamp}",
-        config={"batch_size": args.batch_size, "epochs": args.num_epochs, "subset": subset},
+        entity=cfg.wandb.entity,
+        project=cfg.wandb.project,
+        name=f"{cfg.experiment_name}_{timestamp}",
+        config=cfg.hyperparameters,
+        mode=cfg.wandb.mode,  # Online or offline
     )
 
     # Load data
-    data_path = Path("data/raw/Forest Segmented")
-    metadata_file = "meta_data.csv"
-    train_loader, val_loader = get_dataloaders(data_path, metadata_file, batch_size=args.batch_size, subset=subset)
+    train_loader, val_loader = get_dataloaders(
+        data_path=Path(cfg.dataset.data_path),
+        metadata_file=cfg.dataset.metadata_file,
+        batch_size=cfg.hyperparameters.batch_size,
+        subset=cfg.dataset.subset
+    )
 
     # Initialize model
     model = UNet(in_channels=3, out_channels=1)
 
     # Define loss function & optimizer
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=cfg.hyperparameters.learning_rate, weight_decay=cfg.hyperparameters.weight_decay)
 
     # Train model
     device = "cuda" if torch.cuda.is_available() else "cpu"
     train_losses, val_losses = train_model(
-        model, train_loader, val_loader, criterion, optimizer, num_epochs=args.num_epochs, device=device
+        model, train_loader, val_loader, criterion, optimizer, num_epochs=cfg.hyperparameters.num_epochs, device=device
     )
 
-    # Ensure model and plot directories exist
-    Path("models").mkdir(parents=True, exist_ok=True)
-    Path("reports/figures").mkdir(parents=True, exist_ok=True)
-
-    # Save the trained model with timestamp
+    # Save trained model
     model_path = f"models/unet_model_{timestamp}.pth"
     torch.save(model.state_dict(), model_path)
     log.success(f"Model saved as {model_path}")
-
-    # Log model to W&B
     wandb.save(model_path)
 
-    # Save the loss plot with timestamp
+    # Save the loss plot
     loss_plot_path = f"reports/figures/loss_plot_{timestamp}.png"
     plt.plot(train_losses, label="Train Loss")
     plt.plot(val_losses, label="Validation Loss")
@@ -132,9 +124,11 @@ if __name__ == "__main__":
     plt.title("Training & Validation Loss")
     plt.savefig(loss_plot_path)
     log.success(f"Loss plot saved as {loss_plot_path}")
-
-    # Log loss plot to Weights & Biases
     wandb.log({"Loss Plot": wandb.Image(loss_plot_path)})
 
-    # Finish Weights & Biases logging
+    # Finish W&B logging
     wandb.finish()
+
+
+if __name__ == "__main__":
+    main()
