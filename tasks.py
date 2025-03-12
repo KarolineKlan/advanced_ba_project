@@ -1,5 +1,6 @@
 import os
-from invoke import task, Context
+
+from invoke import Context, task
 
 WINDOWS = os.name == "nt"
 PROJECT_NAME = "advanced_ba_project"
@@ -41,7 +42,7 @@ def preprocess_data(ctx: Context) -> None:
 @task
 def train(ctx: Context, batch_size=16, num_epochs=10, subset="false") -> None:
     """Train the model using Invoke and Hydra with Weights & Biases always enabled."""
-    
+
     # Convert subset to lowercase boolean string
     subset_flag = "true" if subset.lower() in ["true", "1", "yes"] else "false"
 

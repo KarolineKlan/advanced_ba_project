@@ -1,14 +1,15 @@
-import os
 import datetime
+import os
 from pathlib import Path
+
 import hydra
-import wandb
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from omegaconf import DictConfig
 
+import wandb
 from advanced_ba_project.data import get_dataloaders
 from advanced_ba_project.logger import log
 from advanced_ba_project.model import UNet
@@ -92,7 +93,7 @@ def main(cfg: DictConfig):
         data_path=Path(cfg.dataset.data_path),
         metadata_file=cfg.dataset.metadata_file,
         batch_size=cfg.hyperparameters.batch_size,
-        subset=cfg.dataset.subset
+        subset=cfg.dataset.subset,
     )
 
     # Initialize model
@@ -100,7 +101,9 @@ def main(cfg: DictConfig):
 
     # Define loss function & optimizer
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=cfg.hyperparameters.learning_rate, weight_decay=cfg.hyperparameters.weight_decay)
+    optimizer = optim.Adam(
+        model.parameters(), lr=cfg.hyperparameters.learning_rate, weight_decay=cfg.hyperparameters.weight_decay
+    )
 
     # Train model
     device = "cuda" if torch.cuda.is_available() else "cpu"
