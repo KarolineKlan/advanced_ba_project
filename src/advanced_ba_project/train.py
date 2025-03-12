@@ -6,9 +6,10 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import wandb
 
 from advanced_ba_project.data import get_dataloaders
-from advanced_ba_project.logger import log  # Import your logger
+from advanced_ba_project.logger import log
 from advanced_ba_project.model import UNet
 
 
@@ -20,7 +21,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     val_losses = []
 
     for epoch in range(num_epochs):
-        log.info(f"Epoch {epoch + 1}/{num_epochs}")  # Use loguru instead of print
+        log.info(f"Epoch {epoch + 1}/{num_epochs}")
 
         # Training phase
         model.train()
@@ -41,7 +42,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
         epoch_loss = running_loss / len(train_loader)
         train_losses.append(epoch_loss)
-        log.info(f"Train Loss: {epoch_loss:.4f}")  # Logging instead of print
+        log.info(f"Train Loss: {epoch_loss:.4f}")
+
+        # Log training loss to Weights & Biases
+        wandb.log({"Train Loss": epoch_loss, "Epoch": epoch + 1})
 
         # Validation phase
         model.eval()
@@ -56,7 +60,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
         val_loss /= len(val_loader)
         val_losses.append(val_loss)
-        log.info(f"Validation Loss: {val_loss:.4f}\n")
+        log.info(f"Validation Loss: {val_loss:.4f}")
+
+        # Log validation loss to Weights & Biases
+        wandb.log({"Validation Loss": val_loss, "Epoch": epoch + 1})
 
     return train_losses, val_losses
 
@@ -66,7 +73,7 @@ if __name__ == "__main__":
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     # CLI Argument Parser
-    parser = argparse.ArgumentParser(description="Train U-Net model")
+    parser = argparse.ArgumentParser(description="Train U-Net model with Weights & Biases")
     parser.add_argument("--batch-size", type=int, default=8, help="Batch size")
     parser.add_argument("--num-epochs", type=int, default=1, help="Number of training epochs")
     parser.add_argument("--subset", type=str, default="false", help="Use small subset for quick testing (true/false)")
@@ -76,6 +83,14 @@ if __name__ == "__main__":
     subset = args.subset.lower() in ["true", "1", "yes"]
 
     log.info(f"Starting training with batch size {args.batch_size} for {args.num_epochs} epochs")
+
+    # Initialize Weights & Biases
+    wandb.init(
+        entity="AdvancedBA",
+        project="ForestSegmentationABA",
+        name=f"train_unet_{timestamp}",
+        config={"batch_size": args.batch_size, "epochs": args.num_epochs, "subset": subset},
+    )
 
     # Load data
     data_path = Path("data/raw/Forest Segmented")
@@ -104,6 +119,9 @@ if __name__ == "__main__":
     torch.save(model.state_dict(), model_path)
     log.success(f"Model saved as {model_path}")
 
+    # Log model to W&B
+    wandb.save(model_path)
+
     # Save the loss plot with timestamp
     loss_plot_path = f"reports/figures/loss_plot_{timestamp}.png"
     plt.plot(train_losses, label="Train Loss")
@@ -114,3 +132,9 @@ if __name__ == "__main__":
     plt.title("Training & Validation Loss")
     plt.savefig(loss_plot_path)
     log.success(f"Loss plot saved as {loss_plot_path}")
+
+    # Log loss plot to Weights & Biases
+    wandb.log({"Loss Plot": wandb.Image(loss_plot_path)})
+
+    # Finish Weights & Biases logging
+    wandb.finish()
