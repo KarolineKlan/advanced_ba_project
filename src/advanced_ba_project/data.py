@@ -70,19 +70,23 @@ def get_dataloaders(
     img_dim: int = 256,
     train_ratio: float = 0.85,
     seed: int = 42,
-    subset: bool = False
+    subset: bool = False,
 ):
     """Creates train and validation dataloaders, optionally limiting dataset size for testing."""
-    transform = transforms.Compose([
-        transforms.Resize((img_dim, img_dim)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
-    ])
+    transform = transforms.Compose(
+        [
+            transforms.Resize((img_dim, img_dim)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        ]
+    )
 
-    target_transform = transforms.Compose([
-        transforms.Resize((img_dim, img_dim)),
-        transforms.ToTensor(),
-    ])
+    target_transform = transforms.Compose(
+        [
+            transforms.Resize((img_dim, img_dim)),
+            transforms.ToTensor(),
+        ]
+    )
 
     # Load full dataset
     full_dataset = ForestDataset(data_path, metadata_file, transform=transform, target_transform=target_transform)
@@ -115,9 +119,10 @@ if __name__ == "__main__":
 
     # Example: Fetch a batch
     for images, masks in train_loader:
-        print(f"Images shape: {images.shape}, Masks shape: {masks.shape}")  # Should be (batch_size, 3, 256, 256) and (batch_size, 1, 256, 256)
+        print(
+            f"Images shape: {images.shape}, Masks shape: {masks.shape}"
+        )  # Should be (batch_size, 3, 256, 256) and (batch_size, 1, 256, 256)
         break
-
 
     # Get a batch
     images, masks = next(iter(train_loader))

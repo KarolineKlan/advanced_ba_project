@@ -13,16 +13,14 @@ from advanced_ba_project.model import UNet
 
 
 # Define the training function
-def train_model(
-    model, train_loader, val_loader, criterion, optimizer, num_epochs=10, device="cuda"
-):
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=10, device="cuda"):
     model.to(device)
 
     train_losses = []
     val_losses = []
 
     for epoch in range(num_epochs):
-        log.info(f"Epoch {epoch+1}/{num_epochs}")  # Use loguru instead of print
+        log.info(f"Epoch {epoch + 1}/{num_epochs}")  # Use loguru instead of print
 
         # Training phase
         model.train()
@@ -93,7 +91,9 @@ if __name__ == "__main__":
 
     # Train model
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    train_losses, val_losses = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=args.num_epochs, device=device)
+    train_losses, val_losses = train_model(
+        model, train_loader, val_loader, criterion, optimizer, num_epochs=args.num_epochs, device=device
+    )
 
     # Ensure model and plot directories exist
     Path("models").mkdir(parents=True, exist_ok=True)

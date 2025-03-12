@@ -21,6 +21,3 @@ def test_get_dataloaders():
     # Check if the dataloaders return the correct batch size
     assert train_loader.batch_size == 8
     assert val_loader.batch_size == 8
-
-
-

@@ -23,6 +23,7 @@ def load_model(model_path, device):
     log.success(f"Loaded model from {model_path}")
     return model
 
+
 def visualize_predictions(model, val_loader, device, num_samples=5):
     """Visualizes and compares predicted masks with ground truth."""
 
@@ -64,10 +65,16 @@ def visualize_predictions(model, val_loader, device, num_samples=5):
     log.success(f"Mask comparison saved as {save_path}")
     plt.show()
 
+
 if __name__ == "__main__":
     # CLI Argument Parser
     parser = argparse.ArgumentParser(description="Visualize U-Net model predictions")
-    parser.add_argument("--model-path", type=str, required=True, help="Path of the trained model (e.g. models/unet_model_2024-03-11_15-30-45.pth)")
+    parser.add_argument(
+        "--model-path",
+        type=str,
+        required=True,
+        help="Path of the trained model (e.g. models/unet_model_2024-03-11_15-30-45.pth)",
+    )
     parser.add_argument("--batch-size", type=int, default=8, help="Batch size for visualization")
     parser.add_argument("--subset", type=str, default="true", help="Use small subset for quick testing (true/false)")
     parser.add_argument("--num-samples", type=int, default=5, help="Number of samples to visualize")
