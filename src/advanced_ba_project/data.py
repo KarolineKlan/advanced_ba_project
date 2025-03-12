@@ -1,13 +1,13 @@
+import random
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Optional, Tuple
+
+import matplotlib.pyplot as plt
 import pandas as pd
 import torch
-from torch.utils.data import Dataset, DataLoader, random_split
-from torchvision import transforms
 from PIL import Image
-import matplotlib.pyplot as plt
-from torch.utils.data import Subset
-import random
+from torch.utils.data import DataLoader, Dataset, Subset, random_split
+from torchvision import transforms
 
 
 class ForestDataset(Dataset):
@@ -64,11 +64,11 @@ class ForestDataset(Dataset):
 
 
 def get_dataloaders(
-    data_path: Path, 
-    metadata_file: str, 
-    batch_size: int = 32, 
-    img_dim: int = 256, 
-    train_ratio: float = 0.85, 
+    data_path: Path,
+    metadata_file: str,
+    batch_size: int = 32,
+    img_dim: int = 256,
+    train_ratio: float = 0.85,
     seed: int = 42,
     subset: bool = False
 ):
@@ -103,7 +103,7 @@ def get_dataloaders(
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
     print(f"Using Small Dataset - Train: {len(train_dataset)}, Val: {len(val_dataset)}")
-    
+
     return train_loader, val_loader
 
 
@@ -117,8 +117,8 @@ if __name__ == "__main__":
     for images, masks in train_loader:
         print(f"Images shape: {images.shape}, Masks shape: {masks.shape}")  # Should be (batch_size, 3, 256, 256) and (batch_size, 1, 256, 256)
         break
-    
-    
+
+
     # Get a batch
     images, masks = next(iter(train_loader))
 

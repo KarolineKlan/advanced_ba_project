@@ -38,7 +38,7 @@ def preprocess_data(ctx: Context) -> None:
 @task
 def train(ctx: Context, batch_size=8, num_epochs=1, subset="false") -> None:
     """Train model with specified parameters."""
-    
+
     # Convert subset from string to boolean
     subset = subset.lower() in ["true", "1", "yes"]
     subset_flag = "--subset true" if subset else "--subset false"

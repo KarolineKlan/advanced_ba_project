@@ -1,11 +1,14 @@
-import torch
-import matplotlib.pyplot as plt
-from pathlib import Path
 import argparse
 import datetime
-from advanced_ba_project.model import UNet
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import torch
+
 from advanced_ba_project.data import get_dataloaders
 from advanced_ba_project.logger import log
+from advanced_ba_project.model import UNet
+
 
 def load_model(model_path, device):
     """Loads the trained U-Net model from models/ directory using the given model name."""
@@ -13,7 +16,7 @@ def load_model(model_path, device):
     if not model_path.exists():
         log.error(f"Model file not found: {model_path}")
         exit(1)
-    
+
     model = UNet(in_channels=3, out_channels=1).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
@@ -22,7 +25,7 @@ def load_model(model_path, device):
 
 def visualize_predictions(model, val_loader, device, num_samples=5):
     """Visualizes and compares predicted masks with ground truth."""
-    
+
     # Generate a timestamp for unique filenames
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     save_path = f"reports/figures/mask_comparison_{timestamp}.png"

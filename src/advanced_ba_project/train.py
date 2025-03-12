@@ -1,13 +1,16 @@
-from pathlib import Path
+import argparse
 import datetime
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import matplotlib.pyplot as plt
-import argparse
-from advanced_ba_project.model import UNet
+
 from advanced_ba_project.data import get_dataloaders
 from advanced_ba_project.logger import log  # Import your logger
+from advanced_ba_project.model import UNet
+
 
 # Define the training function
 def train_model(

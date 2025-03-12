@@ -1,5 +1,7 @@
-from advanced_ba_project.model import UNet
 import torch
+
+from advanced_ba_project.model import UNet
+
 
 def test_unet():
     # Test the UNet model

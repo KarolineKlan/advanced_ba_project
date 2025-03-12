@@ -1,5 +1,6 @@
-from torch.utils.data import Dataset
 import torch
+from torch.utils.data import Dataset
+
 from advanced_ba_project.data import get_dataloaders
 
 
