@@ -180,7 +180,7 @@ cython_debug/
 data/*
 
 # Models and figures
-models/*
+
 reports/figures/*
 wandb/*
 outputs/*

@@ -73,7 +73,7 @@ if __name__ == "__main__":
         "--model-path",
         type=str,
         required=True,
-        help="Path of the trained model (e.g. models/unet_model_2024-03-11_15-30-45.pth)",
+        help="Path of the trained model (e.g. models/unet_model_2024-03-12_12-11-43.pth)",
     )
     parser.add_argument("--batch-size", type=int, default=8, help="Batch size for visualization")
     parser.add_argument("--subset", type=str, default="true", help="Use small subset for quick testing (true/false)")
