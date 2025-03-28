@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import hydra
+from hydra.utils import to_absolute_path
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, jaccard_score
 import torch
@@ -139,7 +140,7 @@ def main(cfg: DictConfig):
 
     # Load data
     train_loader, val_loader = get_dataloaders(
-        data_path=Path(cfg.dataset.data_path),
+        data_path=Path(to_absolute_path(cfg.dataset.data_path)),
         metadata_file=cfg.dataset.metadata_file,
         batch_size=cfg.hyperparameters.batch_size,
         subset=cfg.dataset.subset,
