@@ -7,7 +7,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 import wandb
 
 
@@ -125,12 +125,15 @@ def main(cfg: DictConfig):
     # Timestamp for unique model/log naming
     timestamp = cfg.timestamp
 
-    # Initialize W&B (Always On)
+    # Convert Hydra config to a JSON-friendly dictionary
+    wandb_config = OmegaConf.to_container(cfg.hyperparameters, resolve=True)
+
+    # Initialize W&B
     wandb.init(
         entity=cfg.wandb.entity,
         project=cfg.wandb.project,
         name=f"{cfg.experiment_name}_{timestamp}",
-        config=cfg.hyperparameters,
+        config=wandb_config,
         mode=cfg.wandb.mode,  # Online or offline
     )
 
