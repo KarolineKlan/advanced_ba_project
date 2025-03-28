@@ -3,11 +3,13 @@ from pathlib import Path
 
 import hydra
 import matplotlib.pyplot as plt
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, jaccard_score
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from omegaconf import DictConfig
 import wandb
+
 
 from advanced_ba_project.data import get_dataloaders
 from advanced_ba_project.logger import log
@@ -51,6 +53,11 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         # Validation phase
         model.eval()
         val_loss = 0.0
+
+        # Metric accumulators
+        total_pixels = 0
+        metrics = {"accuracy": 0, "precision": 0, "recall": 0, "f1": 0, "iou": 0}
+
         with torch.no_grad():
             for images, masks in val_loader:
                 images, masks = images.to(device), masks.to(device)
@@ -59,12 +66,52 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
                 loss = criterion(outputs, masks)
                 val_loss += loss.item()
 
-        val_loss /= len(val_loader)
-        val_losses.append(val_loss)
-        log.info(f"Validation Loss: {val_loss:.4f}")
+                # Post-process predictions
+                preds = torch.sigmoid(outputs)
+                preds_bin = (preds > 0.5).float()
 
-        # Log validation loss to W&B
-        wandb.log({"Validation Loss": val_loss, "Epoch": epoch + 1})
+                # Flatten predictions and masks
+                preds_flat = preds_bin.cpu().numpy().flatten().astype(int)
+                masks_flat = masks.cpu().numpy().flatten().astype(int)
+
+                batch_pixels = preds_flat.shape[0]
+                total_pixels += batch_pixels
+
+                # Update metric accumulators
+                metrics["accuracy"] += accuracy_score(masks_flat, preds_flat) * batch_pixels
+                metrics["precision"] += precision_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
+                metrics["recall"] += recall_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
+                metrics["f1"] += f1_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
+                metrics["iou"] += jaccard_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
+
+        # Normalize results
+        val_loss /= len(val_loader)
+        for k in metrics:
+            metrics[k] /= total_pixels
+
+        val_losses.append(val_loss)
+
+        # Log to terminal
+        log.info(f"Validation Loss: {val_loss:.4f}")
+        log.info(
+            f"Accuracy: {metrics['accuracy']:.4f} | "
+            f"Precision: {metrics['precision']:.4f} | "
+            f"Recall: {metrics['recall']:.4f} | "
+            f"F1: {metrics['f1']:.4f} | "
+            f"IoU: {metrics['iou']:.4f}"
+        )
+
+        # Log to Weights & Biases
+        wandb.log({
+            "Validation Loss": val_loss,
+            "Val Accuracy": metrics["accuracy"],
+            "Val Precision": metrics["precision"],
+            "Val Recall": metrics["recall"],
+            "Val F1": metrics["f1"],
+            "Val IoU": metrics["iou"],
+            "Epoch": epoch + 1,
+        })
+
 
     return train_losses, val_losses
 
