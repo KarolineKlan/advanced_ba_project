@@ -159,7 +159,7 @@ def main(cfg: DictConfig):
     )
     
     # Try different thresholds
-    thresholds = [0.01, 0.025, 0.05, 0.1]
+    thresholds = [0, 0.01, 0.025, 0.05]
     best_threshold = None
     best_f1 = -1
     
@@ -184,10 +184,7 @@ def main(cfg: DictConfig):
     return None
 
 
-
-
-
-
-
 if __name__ == "__main__":
-    visualize_prediction(image='/Users/kristofferkjaer/Desktop/DTU_masters/F25/ABA/advanced_ba_project/data/raw/Forest Segmented/images/3484_sat_24.jpg')
+    #main()
+    
+    visualize_prediction(image='/Users/kristofferkjaer/Desktop/DTU_masters/F25/ABA/advanced_ba_project/data/raw/Forest Segmented/images/3484_sat_24.jpg', threshold=0)
