@@ -23,6 +23,6 @@ wandb:
 
 # Data settings
 dataset:
-  data_path: "/data/raw/Forest Segmented"
-  metadata_file: "meta_data.csv"
+  data_path: data/raw/Forest Segmented
+  metadata_file: meta_data.csv
   subset: false  # Change to true for quick testing
