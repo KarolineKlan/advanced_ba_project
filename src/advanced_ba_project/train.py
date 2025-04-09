@@ -104,14 +104,15 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         # Log to Weights & Biases
         wandb.log(
             {
+                "Train Loss": epoch_loss,
                 "Validation Loss": val_loss,
                 "Val Accuracy": metrics["accuracy"],
                 "Val Precision": metrics["precision"],
                 "Val Recall": metrics["recall"],
                 "Val F1": metrics["f1"],
                 "Val IoU": metrics["iou"],
-                "Epoch": epoch + 1,
-            }
+            },
+            step=int(epoch + 1)
         )
 
     return train_losses, val_losses
