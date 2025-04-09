@@ -25,4 +25,6 @@ wandb:
 dataset:
   data_path: data/raw/Forest Segmented
   metadata_file: meta_data.csv
-  subset: false  # Change to true for quick testing
+  roboflow_train_path: data/raw/roboflow/train
+  roboflow_val_path: data/raw/roboflow/valid  # <-- updated to match your fix
+  subset: false
