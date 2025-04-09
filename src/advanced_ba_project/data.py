@@ -1,12 +1,12 @@
 import random
 from pathlib import Path
-from typing import Tuple
+from typing import List, Tuple
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch
-from PIL import Image
-from torch.utils.data import DataLoader, Dataset, Subset, random_split
+from PIL import Image, ImageDraw
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, random_split
 from torchvision import transforms
 
 
@@ -63,16 +63,91 @@ class ForestDataset(Dataset):
         return image, mask
 
 
+class RoboflowTreeDataset(Dataset):
+    """Dataset for Roboflow-style images + polygon txt labels, extracting only 'Tree' annotations."""
+
+    def __init__(
+        self,
+        image_dir: Path,
+        label_dir: Path,
+        patch_size: int = 256,
+        transform=None,
+        target_transform=None,
+    ):
+        self.image_dir = image_dir
+        self.label_dir = label_dir
+        self.patch_size = patch_size
+        self.transform = transform
+        self.target_transform = target_transform
+
+        self.samples = self._build_samples()
+
+    def _build_samples(self) -> List[Tuple[Path, Path, Tuple[int, int]]]:
+        samples = []
+        for image_path in sorted(self.image_dir.glob("*.jpg")):
+            label_path = self.label_dir / (image_path.stem + ".txt")
+            if not label_path.exists():
+                continue
+
+            for y in range(0, 512, self.patch_size):
+                for x in range(0, 512, self.patch_size):
+                    samples.append((image_path, label_path, (x, y)))
+        return samples
+
+    def _parse_tree_polygons(self, label_path: Path) -> List[List[Tuple[float, float]]]:
+        polygons = []
+        with open(label_path, "r") as file:
+            for line in file:
+                parts = line.strip().split()
+                if len(parts) < 9:
+                    continue  # Not a valid polygon line
+                label = parts[-2]
+                if label.lower() != "tree":
+                    continue
+                coords = list(map(float, parts[:-2]))
+                polygon = [(coords[i], coords[i + 1]) for i in range(0, len(coords), 2)]
+                polygons.append(polygon)
+        return polygons
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        image_path, label_path, (x, y) = self.samples[idx]
+
+        image = Image.open(image_path).convert("RGB").crop((x, y, x + self.patch_size, y + self.patch_size))
+
+        # Build mask
+        mask = Image.new("L", (512, 512), 0)
+        polygons = self._parse_tree_polygons(label_path)
+        for poly in polygons:
+            ImageDraw.Draw(mask).polygon(poly, outline=1, fill=1)
+        mask = mask.crop((x, y, x + self.patch_size, y + self.patch_size))
+
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            mask = self.target_transform(mask)
+
+        return image, mask
+
+
+from torch.utils.data import ConcatDataset
+
+
 def get_dataloaders(
     data_path: Path,
     metadata_file: str,
+    roboflow_train_path: Path,
+    roboflow_val_path: Path,
     batch_size: int = 32,
     img_dim: int = 256,
     train_ratio: float = 0.85,
     seed: int = 42,
     subset: bool = False,
 ):
-    """Creates train and validation dataloaders, optionally limiting dataset size for testing."""
+    """Creates combined train and validation dataloaders from Forest and Roboflow datasets."""
+
     transform = transforms.Compose(
         [
             transforms.Resize((img_dim, img_dim)),
@@ -88,25 +163,54 @@ def get_dataloaders(
         ]
     )
 
-    # Load full dataset
-    full_dataset = ForestDataset(data_path, metadata_file, transform=transform, target_transform=target_transform)
+    # Load Forest Dataset
+    forest_dataset = ForestDataset(data_path, metadata_file, transform=transform, target_transform=target_transform)
 
     # Reduce dataset size for quick testing
     if subset:
         torch.manual_seed(seed)
-        indices = random.sample(range(len(full_dataset)), min(len(full_dataset), 120))  # 100 train, 20 val
-        full_dataset = Subset(full_dataset, indices)
+        indices = random.sample(range(len(forest_dataset)), min(len(forest_dataset), 120))
+        forest_dataset = Subset(forest_dataset, indices)
 
-    # Split into train/validation
-    train_size = int(train_ratio * len(full_dataset))
-    val_size = len(full_dataset) - train_size
-    train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+    # Load Roboflow Datasets (already pre-split into train/val)
+    roboflow_train = RoboflowTreeDataset(
+        image_dir=roboflow_train_path / "images",
+        label_dir=roboflow_train_path / "labelTxt",
+        patch_size=img_dim,
+        transform=transform,
+        target_transform=target_transform,
+    )
 
-    # Reduce batch size
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    roboflow_val = RoboflowTreeDataset(
+        image_dir=roboflow_val_path / "images",
+        label_dir=roboflow_val_path / "labelTxt",
+        patch_size=img_dim,
+        transform=transform,
+        target_transform=target_transform,
+    )
 
-    print(f"Using Small Dataset - Train: {len(train_dataset)}, Val: {len(val_dataset)}")
+    # Split Forest into train/val
+    train_size = int(train_ratio * len(forest_dataset))
+    val_size = len(forest_dataset) - train_size
+    forest_train, forest_val = random_split(forest_dataset, [train_size, val_size])
+
+    # Combine datasets
+    combined_train = ConcatDataset([forest_train, roboflow_train])
+    combined_val = ConcatDataset([forest_val, roboflow_val])
+
+    # Shuffle training set once
+    torch.manual_seed(seed)
+    train_indices = torch.randperm(len(combined_train)).tolist()
+    combined_train = Subset(combined_train, train_indices)
+
+    # Shuffle validation set once (different seed for variation)
+    torch.manual_seed(seed + 1)
+    val_indices = torch.randperm(len(combined_val)).tolist()
+    combined_val = Subset(combined_val, val_indices)
+
+    # Create DataLoaders
+    train_loader = DataLoader(combined_train, batch_size=batch_size, shuffle=False, num_workers=0)
+    val_loader = DataLoader(combined_val, batch_size=batch_size, shuffle=False, num_workers=0)
 
     return train_loader, val_loader
 
@@ -114,15 +218,39 @@ def get_dataloaders(
 if __name__ == "__main__":
     data_path = Path("data/raw/Forest Segmented")
     metadata_file = "meta_data.csv"
+    roboflow_train_path = Path("data/raw/roboflow/train")
+    roboflow_val_path = Path("data/raw/roboflow/valid")
 
-    train_loader, val_loader = get_dataloaders(data_path, metadata_file)
+    train_loader, val_loader = get_dataloaders(
+        data_path,
+        metadata_file,
+        roboflow_train_path,
+        roboflow_val_path,
+        batch_size=32,
+        img_dim=256,
+        subset=False,  # True if you want to reduce size
+    )
+
+    def count_empty_masks(dataloader, name=""):
+        empty = 0
+        total = 0
+        for images, masks in dataloader:
+            batch_size = masks.size(0)
+            total += batch_size
+            # Flatten and sum each mask: if sum == 0, it's an empty mask
+            empty += (masks.view(batch_size, -1).sum(dim=1) == 0).sum().item()
+
+        print(f"[{name}] Empty masks: {empty} / {total} ({(empty / total) * 100:.2f}%)")
+
+    # Count empty masks
+    count_empty_masks(train_loader, name="Train")
+    count_empty_masks(val_loader, name="Val")
 
     # Example: Fetch a batch
-    for images, masks in train_loader:
-        print(
-            f"Images shape: {images.shape}, Masks shape: {masks.shape}"
-        )  # Should be (batch_size, 3, 256, 256) and (batch_size, 1, 256, 256)
-        break
+    for i, (images, masks) in enumerate(train_loader):
+        print(f"[Batch {i}] Image shape: {images.shape} | Mask shape: {masks.shape}")
+        if i == 2:
+            break
 
     # Get a batch
     images, masks = next(iter(train_loader))

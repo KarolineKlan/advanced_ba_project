@@ -2,16 +2,15 @@ import os
 from pathlib import Path
 
 import hydra
-from hydra.utils import to_absolute_path
 import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, jaccard_score
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from hydra.utils import to_absolute_path
 from omegaconf import DictConfig, OmegaConf
+from sklearn.metrics import accuracy_score, f1_score, jaccard_score, precision_score, recall_score
+
 import wandb
-
-
 from advanced_ba_project.data import get_dataloaders
 from advanced_ba_project.logger import log
 from advanced_ba_project.model import UNet
@@ -103,16 +102,17 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         )
 
         # Log to Weights & Biases
-        wandb.log({
-            "Validation Loss": val_loss,
-            "Val Accuracy": metrics["accuracy"],
-            "Val Precision": metrics["precision"],
-            "Val Recall": metrics["recall"],
-            "Val F1": metrics["f1"],
-            "Val IoU": metrics["iou"],
-            "Epoch": epoch + 1,
-        })
-
+        wandb.log(
+            {
+                "Validation Loss": val_loss,
+                "Val Accuracy": metrics["accuracy"],
+                "Val Precision": metrics["precision"],
+                "Val Recall": metrics["recall"],
+                "Val F1": metrics["f1"],
+                "Val IoU": metrics["iou"],
+                "Epoch": epoch + 1,
+            }
+        )
 
     return train_losses, val_losses
 
@@ -142,6 +142,8 @@ def main(cfg: DictConfig):
     train_loader, val_loader = get_dataloaders(
         data_path=Path(to_absolute_path(cfg.dataset.data_path)),
         metadata_file=cfg.dataset.metadata_file,
+        roboflow_train_path=Path(to_absolute_path(cfg.dataset.roboflow_train_path)),
+        roboflow_val_path=Path(to_absolute_path(cfg.dataset.roboflow_val_path)),
         batch_size=cfg.hyperparameters.batch_size,
         subset=cfg.dataset.subset,
     )
