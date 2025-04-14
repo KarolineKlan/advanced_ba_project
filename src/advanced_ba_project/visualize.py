@@ -89,7 +89,11 @@ if __name__ == "__main__":
     log.info("Loading validation data...")
     data_path = Path("data/raw/Forest Segmented")
     metadata_file = "meta_data.csv"
-    _, val_loader = get_dataloaders(data_path, metadata_file, batch_size=args.batch_size, subset=subset)
+    roboflow_train_path = Path("data/raw/roboflow/train")
+    roboflow_val_path = Path("data/raw/roboflow/valid")
+    roboflow_test_path = Path("data/raw/roboflow/test")
+    metadata_file = "meta_data.csv"
+    _, val_loader, _ = get_dataloaders(data_path, metadata_file, roboflow_train_path, roboflow_val_path, roboflow_test_path, args.batch_size, subset=subset)
 
     # Load trained model
     model = load_model(args.model_path, device)

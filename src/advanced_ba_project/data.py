@@ -2,7 +2,9 @@ import random
 from pathlib import Path
 from typing import List, Tuple
 
+from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import torch
 from PIL import Image, ImageDraw
@@ -155,7 +157,7 @@ class RoboflowTreeDataset(Dataset):
         mask = Image.new("L", (512, 512), 0)
         polygons = self._parse_tree_polygons(label_path)
         for poly in polygons:
-            ImageDraw.Draw(mask).polygon(poly, outline=1, fill=1)
+            ImageDraw.Draw(mask).polygon(poly, outline=255, fill=255)
         mask = mask.crop((x, y, x + self.patch_size, y + self.patch_size))
 
         if self.transform:
@@ -164,9 +166,6 @@ class RoboflowTreeDataset(Dataset):
             mask = self.target_transform(mask)
 
         return image, mask
-
-
-from torch.utils.data import ConcatDataset
 
 
 def get_dataloaders(
@@ -271,6 +270,111 @@ def get_dataloaders(
 
     return train_loader, val_loader, test_loader
 
+def visualize_raw_data(
+    dataset_name: str,
+    data_path: Path,
+    metadata_file: str = None,
+    image_dir: Path = None,
+    label_dir: Path = None,
+    num_images: int = 5,
+    img_dim: int = 256,
+    seed: int = 42,
+    indices: list = None
+):
+    """
+    Visualize satellite images and forest segmentation masks from a specified dataset.
+
+    Args:
+        dataset_name (str): Either 'forest' or 'roboflow'.
+        data_path (Path): Base path to dataset root.
+        metadata_file (str): Required if dataset is 'forest' (name of metadata CSV).
+        image_dir (Path): Required if dataset is 'roboflow'.
+        label_dir (Path): Required if dataset is 'roboflow'.
+        num_images (int): Number of images to show (ignored if indices is provided).
+        img_dim (int): Target resolution (square).
+        seed (int): Seed for reproducible sampling.
+        indices (list[int], optional): Specific indices to visualize from dataset.
+    """
+    # Define transforms
+    transform = transforms.Compose([
+        transforms.Resize((img_dim, img_dim)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
+    ])
+    target_transform = transforms.Compose([
+        transforms.Resize((img_dim, img_dim)),
+        transforms.ToTensor()
+    ])
+
+    # Select dataset
+    if dataset_name == "forest":
+        if metadata_file is None:
+            raise ValueError("metadata_file must be provided for forest dataset.")
+        dataset = ForestDataset(
+            data_path=data_path,
+            metadata_file=metadata_file,
+            transform=transform,
+            target_transform=target_transform
+        )
+    elif dataset_name == "roboflow":
+        if image_dir is None or label_dir is None:
+            raise ValueError("image_dir and label_dir must be provided for roboflow dataset.")
+        dataset = RoboflowTreeDataset(
+            image_dir=image_dir,
+            label_dir=label_dir,
+            patch_size=img_dim,
+            transform=transform,
+            target_transform=target_transform
+        )
+    else:
+        raise ValueError("dataset_name must be either 'forest' or 'roboflow'.")
+
+    # Get sample indices
+    if indices is None:
+        torch.manual_seed(seed)
+        random.seed(seed)
+        indices = random.sample(range(len(dataset)), min(num_images, len(dataset)))
+    else:
+        num_images = len(indices)
+
+    samples = [dataset[i] for i in indices]
+
+    # Plot
+    fig, axs = plt.subplots(2, num_images, figsize=(4 * num_images, 8))
+
+    for i, (image, mask) in enumerate(samples):
+        image = image.permute(1, 2, 0).numpy()
+        image = (image * 0.5) + 0.5
+        image = np.clip(image, 0, 1)
+
+        mask = mask.squeeze().numpy()
+        if mask.ndim == 3:
+            mask = mask[0]
+
+        axs[0, i].imshow(image)
+        axs[0, i].axis("off")
+        axs[0, i].set_title(f"{dataset_name.capitalize()} Original {indices[i]}")
+
+        overlay = image.copy()
+        forest_color = np.array([0, 1, 0])
+        nonforest_color = np.array([1, 0.3, 0])
+        alpha = 0.5
+
+        mask_bool = mask > 0.5
+        overlay[mask_bool] = (1 - alpha) * overlay[mask_bool] + alpha * forest_color
+        overlay[~mask_bool] = (1 - alpha) * overlay[~mask_bool] + alpha * nonforest_color
+
+        axs[1, i].imshow(overlay)
+        axs[1, i].axis("off")
+        axs[1, i].set_title(f"{dataset_name.capitalize()} Overlay {indices[i]}")
+
+    legend_elements = [
+        Patch(facecolor='green', edgecolor='black', label='Forest', alpha=0.5),
+        Patch(facecolor='orangered', edgecolor='black', label='Non-Forest', alpha=0.5),
+    ]
+    fig.legend(handles=legend_elements, loc='lower center', ncol=2, fontsize='large')
+    plt.tight_layout(rect=[0, 0.05, 1, 1])
+    plt.show()
 
 if __name__ == "__main__":
     data_path = Path("data/raw/Forest Segmented")
@@ -279,56 +383,33 @@ if __name__ == "__main__":
     roboflow_val_path = Path("data/raw/roboflow/valid")
     roboflow_test_path = Path("data/raw/roboflow/test")
 
-    train_loader, val_loader, test_loader = get_dataloaders(
-        data_path,
-        metadata_file,
-        roboflow_train_path,
-        roboflow_val_path,
-        roboflow_test_path,
-        batch_size=32,
-        img_dim=256,
-        subset=False,  # True if you want to reduce size
-        apply_augmentation=True
+    visualize_raw_data(
+        dataset_name="forest",
+        data_path=Path("data/raw/Forest Segmented"),
+        metadata_file="meta_data.csv",
+        indices=[0, 3, 7, 12, 25]
     )
 
-    def count_empty_masks(dataloader, name=""):
-        empty = 0
-        total = 0
-        for images, masks in dataloader:
-            batch_size = masks.size(0)
-            total += batch_size
-            # Flatten and sum each mask: if sum == 0, it's an empty mask
-            empty += (masks.view(batch_size, -1).sum(dim=1) == 0).sum().item()
+    visualize_raw_data(
+        dataset_name="roboflow",
+        data_path=None,
+        image_dir=Path("data/raw/roboflow/train/images"),
+        label_dir=Path("data/raw/roboflow/train/labelTxt"),
+        indices=[0,2,3,4,5]
+    )
 
-        print(f"[{name}] Empty masks: {empty} / {total} ({(empty / total) * 100:.2f}%)")
+    # def count_empty_masks(dataloader, name=""):
+    #     empty = 0
+    #     total = 0
+    #     for images, masks in dataloader:
+    #         batch_size = masks.size(0)
+    #         total += batch_size
+    #         # Flatten and sum each mask: if sum == 0, it's an empty mask
+    #         empty += (masks.view(batch_size, -1).sum(dim=1) == 0).sum().item()
 
-    # Count empty masks
-    count_empty_masks(train_loader, name="Train")
-    count_empty_masks(val_loader, name="Val")
-    count_empty_masks(test_loader, name="Test")
+    #     print(f"[{name}] Empty masks: {empty} / {total} ({(empty / total) * 100:.2f}%)")
 
-    # Example: Fetch a batch
-    for i, (images, masks) in enumerate(train_loader):
-        print(f"[Batch {i}] Image shape: {images.shape} | Mask shape: {masks.shape}")
-        if i == 2:
-            break
-
-    # Get a batch
-    images, masks = next(iter(train_loader))
-
-    # Convert tensors to numpy format for plotting
-    image_np = images[0].permute(1, 2, 0).numpy()  # Change shape to (H, W, C)
-    mask_np = masks[0].squeeze(0).numpy()  # Remove the single color channel
-
-    # Plot
-    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
-    ax[0].imshow((image_np * 0.5) + 0.5)  # Undo normalization for visualization
-    ax[0].set_title("Satellite Image")
-    ax[0].axis("off")
-
-    ax[1].imshow(mask_np, cmap="gray")
-    ax[1].set_title("Segmentation Mask")
-    ax[1].axis("off")
-
-    # Show the plot
-    plt.show()
+    # # Count empty masks
+    # count_empty_masks(train_loader, name="Train")
+    # count_empty_masks(val_loader, name="Val")
+    # count_empty_masks(test_loader, name="Test")
