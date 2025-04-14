@@ -7,11 +7,9 @@ import wandb
 from advanced_ba_project.data import get_dataloaders
 from advanced_ba_project.model import UNet
 from advanced_ba_project.logger import log
-from advanced_ba_project.train import train_model
-
+from advanced_ba_project.train import train_model, DiceBCELoss  # Include scheduler + loss!
 
 def sweep_train():
-    # Initialize W&B sweep run
     wandb.init()
     config = wandb.config
 
@@ -21,36 +19,45 @@ def sweep_train():
         metadata_file="meta_data.csv",
         roboflow_train_path=Path("data/raw/roboflow/train"),
         roboflow_val_path=Path("data/raw/roboflow/valid"),
-        batch_size=config.hyperparameters.batch_size,
+        batch_size=config.batch_size,
         subset=False,
     )
 
-    # Initialize model
+    # Build model
     model = UNet(
         in_channels=3,
         out_channels=1,
-        init_features=config.model.init_features,
+        init_features=config.init_features,
+        dropout_rate=config.dropout_rate,
     )
 
-    # Define loss and optimizer
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = DiceBCELoss()
     optimizer = optim.Adam(
         model.parameters(),
-        lr=config.hyperparameters.learning_rate,
-        weight_decay=config.hyperparameters.weight_decay,
+        lr=config.learning_rate,
+        weight_decay=config.weight_decay,
     )
 
-    # Train
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    train_model(
+    train_losses, val_losses = train_model(
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
         criterion=criterion,
         optimizer=optimizer,
-        num_epochs=config.hyperparameters.num_epochs,
+        scheduler=scheduler,
+        num_epochs=config.num_epochs,
         device=device,
     )
+
+    # ✅ Save model using run name for traceability
+    run_name = wandb.run.name.replace(" ", "_")
+    model_path = f"models/unet_model_{run_name}.pth"
+    torch.save(model.state_dict(), model_path)
+    wandb.save(model_path)
+    print(f"✅ Model saved to {model_path}")
 
     wandb.finish()
 

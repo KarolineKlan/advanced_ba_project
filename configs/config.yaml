@@ -1,23 +1,29 @@
 # General settings
-experiment_name: "unet_training"
-timestamp: ${now:%Y-%m-%d_%H-%M-%S}  # Automatically adds a timestamp
+experiment_name: "unet_resilient"
+timestamp: ${now:%Y-%m-%d_%H-%M-%S}
+seed: 42
 
 # Training hyperparameters
 hyperparameters:
-  batch_size: 16
-  num_epochs: 10
-  learning_rate: 0.001
-  weight_decay: 0.0001
+  batch_size: 32                  # Seems stable for now
+  num_epochs: 150                 # Keep long to observe overfitting
+  learning_rate: 0.0001           # Lower LR helped generalization before
+  weight_decay: 0.0001           # Lower regularization
+
+# Model config (new!)
+model:
+  init_features: 64              # Can try 32 if model is too large
+  dropout_rate: 0.3              # 🔥 Add this to control dropout
 
 # Optimizer settings
 optimizer:
-  type: "adam"  # Can be "adam", "sgd", etc.
+  type: "adam"
 
-# Weights & Biases settings (Always Enabled)
+# Weights & Biases settings
 wandb:
   entity: "AdvancedBA"
   project: "ForestSegmentationABA"
-  mode: "online"  # Change to "offline" for HPC if needed
+  mode: "online"
   save_model: true
   save_loss_plot: true
 
@@ -26,5 +32,6 @@ dataset:
   data_path: data/raw/Forest Segmented
   metadata_file: meta_data.csv
   roboflow_train_path: data/raw/roboflow/train
-  roboflow_val_path: data/raw/roboflow/valid  # <-- updated to match your fix
+  roboflow_val_path: data/raw/roboflow/valid
+  roboflow_test_path: data/raw/roboflow/test
   subset: false
