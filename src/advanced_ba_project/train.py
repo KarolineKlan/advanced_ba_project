@@ -137,7 +137,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
 def main(cfg: DictConfig):
     log.info(f"Using Hydra Config: {cfg}")
     timestamp = cfg.timestamp
-    set_seed(cfg.hyperparameters.seed)
+    set_seed(cfg.seed)
     wandb_config = OmegaConf.to_container(cfg, resolve=True)
 
     wandb.init(
@@ -148,14 +148,15 @@ def main(cfg: DictConfig):
         mode=cfg.wandb.mode,
     )
 
-    train_loader, val_loader = get_dataloaders(
+    train_loader, val_loader, test_loader = get_dataloaders(
         data_path=Path(to_absolute_path(cfg.dataset.data_path)),
         metadata_file=cfg.dataset.metadata_file,
         roboflow_train_path=Path(to_absolute_path(cfg.dataset.roboflow_train_path)),
         roboflow_val_path=Path(to_absolute_path(cfg.dataset.roboflow_val_path)),
+        roboflow_test_path=Path(to_absolute_path(cfg.dataset.roboflow_test_path)),
         batch_size=cfg.hyperparameters.batch_size,
         subset=cfg.dataset.subset,
-        seed=cfg.hyperparameters.seed,
+        seed=cfg.seed,
     )
 
     model = UNet(

@@ -140,9 +140,10 @@ def get_dataloaders(
     metadata_file: str,
     roboflow_train_path: Path,
     roboflow_val_path: Path,
+    roboflow_test_path: Path,
     batch_size: int = 32,
     img_dim: int = 256,
-    train_ratio: float = 0.85,
+    train_ratio: float = 0.80,
     seed: int = 42,
     subset: bool = False,
 ):
@@ -189,14 +190,24 @@ def get_dataloaders(
         target_transform=target_transform,
     )
 
-    # Split Forest into train/val
+    roboflow_test = RoboflowTreeDataset(
+        image_dir=roboflow_test_path / "images",
+        label_dir=roboflow_test_path / "labelTxt",
+        patch_size=img_dim,
+        transform=transform,
+        target_transform=target_transform,
+    )
+
+    # Split Forest into train/val/test
     train_size = int(train_ratio * len(forest_dataset))
-    val_size = len(forest_dataset) - train_size
-    forest_train, forest_val = random_split(forest_dataset, [train_size, val_size])
+    val_size = int(0.1 * len(forest_dataset))
+    test_size = len(forest_dataset) - train_size - val_size
+    forest_train, forest_val, forest_test = random_split(forest_dataset, [train_size, val_size, test_size])
 
     # Combine datasets
     combined_train = ConcatDataset([forest_train, roboflow_train])
     combined_val = ConcatDataset([forest_val, roboflow_val])
+    combined_test = ConcatDataset([forest_test, roboflow_test])
 
     # Shuffle training set once
     torch.manual_seed(seed)
@@ -208,11 +219,17 @@ def get_dataloaders(
     val_indices = torch.randperm(len(combined_val)).tolist()
     combined_val = Subset(combined_val, val_indices)
 
+    # Shuffle test set once (different seed for variation)
+    torch.manual_seed(seed + 2)
+    test_indices = torch.randperm(len(combined_test)).tolist()
+    combined_test = Subset(combined_test, test_indices)
+
     # Create DataLoaders
     train_loader = DataLoader(combined_train, batch_size=batch_size, shuffle=False, num_workers=0)
     val_loader = DataLoader(combined_val, batch_size=batch_size, shuffle=False, num_workers=0)
+    test_loader = DataLoader(combined_test, batch_size=batch_size, shuffle=False, num_workers=0)
 
-    return train_loader, val_loader
+    return train_loader, val_loader, test_loader
 
 
 if __name__ == "__main__":
@@ -220,12 +237,14 @@ if __name__ == "__main__":
     metadata_file = "meta_data.csv"
     roboflow_train_path = Path("data/raw/roboflow/train")
     roboflow_val_path = Path("data/raw/roboflow/valid")
+    roboflow_test_path = Path("data/raw/roboflow/test")
 
-    train_loader, val_loader = get_dataloaders(
+    train_loader, val_loader, test_loader = get_dataloaders(
         data_path,
         metadata_file,
         roboflow_train_path,
         roboflow_val_path,
+        roboflow_test_path,
         batch_size=32,
         img_dim=256,
         subset=False,  # True if you want to reduce size
@@ -245,6 +264,7 @@ if __name__ == "__main__":
     # Count empty masks
     count_empty_masks(train_loader, name="Train")
     count_empty_masks(val_loader, name="Val")
+    count_empty_masks(test_loader, name="Test")
 
     # Example: Fetch a batch
     for i, (images, masks) in enumerate(train_loader):

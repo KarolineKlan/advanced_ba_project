@@ -33,4 +33,5 @@ dataset:
   metadata_file: meta_data.csv
   roboflow_train_path: data/raw/roboflow/train
   roboflow_val_path: data/raw/roboflow/valid
+  roboflow_test_path: data/raw/roboflow/test
   subset: false
