@@ -3,6 +3,8 @@ from pathlib import Path
 
 import hydra
 import matplotlib.pyplot as plt
+import numpy as np
+import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -15,9 +17,35 @@ from advanced_ba_project.data import get_dataloaders
 from advanced_ba_project.logger import log
 from advanced_ba_project.model import UNet
 
+def set_seed(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if using multi-GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+class DiceBCELoss(nn.Module):
+    def __init__(self):
+        super(DiceBCELoss, self).__init__()
+        self.bce = nn.BCEWithLogitsLoss()
+
+    def forward(self, inputs, targets):
+        bce_loss = self.bce(inputs, targets)
+
+        smooth = 1e-6
+        inputs = torch.sigmoid(inputs)
+        inputs = inputs.view(-1)
+        targets = targets.view(-1)
+
+        intersection = (inputs * targets).sum()
+        dice_loss = 1 - (2. * intersection + smooth) / (inputs.sum() + targets.sum() + smooth)
+
+        return bce_loss + dice_loss
 
 # Define the training function
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=10, device="cuda"):
+def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler=None, num_epochs=10, device="cuda"):
     model.to(device)
 
     train_losses = []
@@ -46,65 +74,49 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         epoch_loss = running_loss / len(train_loader)
         train_losses.append(epoch_loss)
         log.info(f"Train Loss: {epoch_loss:.4f}")
-
-        # Log training loss to W&B
         wandb.log({"Train Loss": epoch_loss, "Epoch": epoch + 1})
 
         # Validation phase
         model.eval()
         val_loss = 0.0
-
-        # Metric accumulators
         total_pixels = 0
         metrics = {"accuracy": 0, "precision": 0, "recall": 0, "f1": 0, "iou": 0}
 
         with torch.no_grad():
             for images, masks in val_loader:
                 images, masks = images.to(device), masks.to(device)
-
                 outputs = model(images)
                 loss = criterion(outputs, masks)
                 val_loss += loss.item()
 
-                # Post-process predictions
                 preds = torch.sigmoid(outputs)
                 preds_bin = (preds > 0.5).float()
 
-                # Flatten predictions and masks
                 preds_flat = preds_bin.cpu().numpy().flatten().astype(int)
                 masks_flat = masks.cpu().numpy().flatten().astype(int)
 
                 batch_pixels = preds_flat.shape[0]
                 total_pixels += batch_pixels
 
-                # Update metric accumulators
                 metrics["accuracy"] += accuracy_score(masks_flat, preds_flat) * batch_pixels
                 metrics["precision"] += precision_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
                 metrics["recall"] += recall_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
                 metrics["f1"] += f1_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
                 metrics["iou"] += jaccard_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
 
-        # Normalize results
         val_loss /= len(val_loader)
         for k in metrics:
             metrics[k] /= total_pixels
 
         val_losses.append(val_loss)
-
-        # Log to terminal
         log.info(f"Validation Loss: {val_loss:.4f}")
         log.info(
-            f"Accuracy: {metrics['accuracy']:.4f} | "
-            f"Precision: {metrics['precision']:.4f} | "
-            f"Recall: {metrics['recall']:.4f} | "
-            f"F1: {metrics['f1']:.4f} | "
-            f"IoU: {metrics['iou']:.4f}"
+            f"Accuracy: {metrics['accuracy']:.4f} | Precision: {metrics['precision']:.4f} | "
+            f"Recall: {metrics['recall']:.4f} | F1: {metrics['f1']:.4f} | IoU: {metrics['iou']:.4f}"
         )
 
-        # Log to Weights & Biases
         wandb.log(
             {
-                "Train Loss": epoch_loss,
                 "Validation Loss": val_loss,
                 "Val Accuracy": metrics["accuracy"],
                 "Val Precision": metrics["precision"],
@@ -112,34 +124,30 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
                 "Val F1": metrics["f1"],
                 "Val IoU": metrics["iou"],
             },
-            step=int(epoch + 1)
+            step=epoch + 1
         )
+
+        if scheduler:
+            scheduler.step(val_loss)
 
     return train_losses, val_losses
 
 
 @hydra.main(config_path=f"{os.getcwd()}/configs", config_name="config", version_base="1.2")
 def main(cfg: DictConfig):
-    """Train U-Net using configuration from Hydra."""
-
     log.info(f"Using Hydra Config: {cfg}")
-
-    # Timestamp for unique model/log naming
     timestamp = cfg.timestamp
+    set_seed(cfg.hyperparameters.seed)
+    wandb_config = OmegaConf.to_container(cfg, resolve=True)
 
-    # Convert Hydra config to a JSON-friendly dictionary
-    wandb_config = OmegaConf.to_container(cfg.hyperparameters, resolve=True)
-
-    # Initialize W&B
     wandb.init(
         entity=cfg.wandb.entity,
         project=cfg.wandb.project,
         name=f"{cfg.experiment_name}_{timestamp}",
         config=wandb_config,
-        mode=cfg.wandb.mode,  # Online or offline
+        mode=cfg.wandb.mode,
     )
 
-    # Load data
     train_loader, val_loader = get_dataloaders(
         data_path=Path(to_absolute_path(cfg.dataset.data_path)),
         metadata_file=cfg.dataset.metadata_file,
@@ -147,30 +155,36 @@ def main(cfg: DictConfig):
         roboflow_val_path=Path(to_absolute_path(cfg.dataset.roboflow_val_path)),
         batch_size=cfg.hyperparameters.batch_size,
         subset=cfg.dataset.subset,
+        seed=cfg.hyperparameters.seed,
     )
 
-    # Initialize model
-    model = UNet(in_channels=3, out_channels=1)
+    model = UNet(
+        in_channels=3,
+        out_channels=1,
+        init_features=cfg.model.init_features,
+        dropout_rate=cfg.model.dropout_rate,
+    )
 
-    # Define loss function & optimizer
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = DiceBCELoss()
     optimizer = optim.Adam(
-        model.parameters(), lr=cfg.hyperparameters.learning_rate, weight_decay=cfg.hyperparameters.weight_decay
+        model.parameters(),
+        lr=cfg.hyperparameters.learning_rate,
+        weight_decay=cfg.hyperparameters.weight_decay,
     )
 
-    # Train model
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, verbose=True)
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     train_losses, val_losses = train_model(
-        model, train_loader, val_loader, criterion, optimizer, num_epochs=cfg.hyperparameters.num_epochs, device=device
+        model, train_loader, val_loader, criterion, optimizer,
+        scheduler=scheduler, num_epochs=cfg.hyperparameters.num_epochs, device=device
     )
 
-    # Save trained model
     model_path = f"models/unet_model_{timestamp}.pth"
     torch.save(model.state_dict(), model_path)
     log.success(f"Model saved as {model_path}")
     wandb.save(model_path)
 
-    # Save the loss plot
     loss_plot_path = f"reports/figures/loss_plot_{timestamp}.png"
     plt.plot(train_losses, label="Train Loss")
     plt.plot(val_losses, label="Validation Loss")
@@ -182,9 +196,9 @@ def main(cfg: DictConfig):
     log.success(f"Loss plot saved as {loss_plot_path}")
     wandb.log({"Loss Plot": wandb.Image(loss_plot_path)})
 
-    # Finish W&B logging
     wandb.finish()
 
 
 if __name__ == "__main__":
     main()
+

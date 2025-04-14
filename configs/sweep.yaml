@@ -1,16 +1,21 @@
+program: src/advanced_ba_project/sweep_new.py
+entity: AdvancedBA
+project: ForestSegmentationABA
 method: grid
-name: sweep_unet_grid
+name: sweep_with_dropout
 metric:
   name: Val F1
   goal: maximize
 parameters:
-  hyperparameters.batch_size:
+  batch_size:
     values: [16, 32]
-  hyperparameters.learning_rate:
-    values: [0.001, 0.0005]
-  hyperparameters.weight_decay:
-    values: [0.0, 0.0001]
-  hyperparameters.num_epochs:
+  learning_rate:
+    values: [0.001, 0.0005, 0.0001]
+  weight_decay:
+    values: [0.001, 0.0001]
+  num_epochs:
     value: 100
-  model.init_features:
-    values: [32, 64]
+  init_features:
+    value: 64
+  dropout_rate:
+    values: [0.1, 0.2, 0.3]

@@ -3,9 +3,10 @@ import torch.nn as nn
 
 
 class UNet(nn.Module):
-    def __init__(self, in_channels=3, out_channels=1, init_features=64):
+    def __init__(self, in_channels=3, out_channels=1, init_features=64, dropout_rate=0.2):
         super().__init__()
         features = init_features
+        self.dropout_rate = dropout_rate
 
         # Contracting path
         self.enc1 = self.contracting_block(in_channels, features)
@@ -58,6 +59,7 @@ class UNet(nn.Module):
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
+            nn.Dropout2d(self.dropout_rate),  # 🔥 Dropout added here
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
@@ -68,6 +70,7 @@ class UNet(nn.Module):
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
+            nn.Dropout2d(self.dropout_rate),
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
@@ -78,6 +81,7 @@ class UNet(nn.Module):
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
+            nn.Dropout2d(self.dropout_rate),
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
@@ -88,9 +92,9 @@ class UNet(nn.Module):
         return torch.cat([upsampled, x2], dim=1)
 
 
-# Test
+# Optional quick test
 if __name__ == "__main__":
-    model = UNet(in_channels=3, out_channels=1)
+    model = UNet(in_channels=3, out_channels=1, dropout_rate=0.2)
     x = torch.randn(1, 3, 256, 256)
     y = model(x)
     print(f"Output shape: {y.shape}")  # Expect (1, 1, 256, 256)
