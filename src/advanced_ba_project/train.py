@@ -197,6 +197,57 @@ def main(cfg: DictConfig):
     log.success(f"Loss plot saved as {loss_plot_path}")
     wandb.log({"Loss Plot": wandb.Image(loss_plot_path)})
 
+    # Final evaluation on the test set
+    model.eval()
+    test_loss = 0.0
+    total_pixels = 0
+    metrics = {"accuracy": 0, "precision": 0, "recall": 0, "f1": 0, "iou": 0}
+
+    # Evaluate on the test set
+    with torch.no_grad():
+        for images, masks in test_loader:
+            images, masks = images.to(device), masks.to(device)
+            outputs = model(images)
+            loss = criterion(outputs, masks)
+            test_loss += loss.item()
+
+            preds = torch.sigmoid(outputs)
+            preds_bin = (preds > 0.5).float()
+
+            preds_flat = preds_bin.cpu().numpy().flatten().astype(int)
+            masks_flat = masks.cpu().numpy().flatten().astype(int)
+
+            batch_pixels = preds_flat.shape[0]
+            total_pixels += batch_pixels
+
+            metrics["accuracy"] += accuracy_score(masks_flat, preds_flat) * batch_pixels
+            metrics["precision"] += precision_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
+            metrics["recall"] += recall_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
+            metrics["f1"] += f1_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
+            metrics["iou"] += jaccard_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
+        
+    # Calculate average metrics
+    test_loss /= len(test_loader)
+    for k in metrics:
+        metrics[k] /= total_pixels
+    
+    # Log test metrics
+    log.info(f"Test Loss: {test_loss:.4f}")
+    log.info(
+        f"Test Accuracy: {metrics['accuracy']:.4f} | Test Precision: {metrics['precision']:.4f} | "
+        f"Test Recall: {metrics['recall']:.4f} | Test F1: {metrics['f1']:.4f} | Test IoU: {metrics['iou']:.4f}"
+    )
+    wandb.log(
+        {
+            "Test Loss": test_loss,
+            "Test Accuracy": metrics["accuracy"],
+            "Test Precision": metrics["precision"],
+            "Test Recall": metrics["recall"],
+            "Test F1": metrics["f1"],
+            "Test IoU": metrics["iou"],
+        }
+    ) 
+
     wandb.finish()
 
 
