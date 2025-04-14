@@ -150,16 +150,23 @@ def visualize_prediction(image, threshold=0.01, ground_truth=None):
 
 @hydra.main(config_path=f"{os.getcwd()}/configs", config_name="config", version_base="1.2")
 def main(cfg: DictConfig):
-    # Load data
+    data_path = Path("data/raw/Forest Segmented")
+    metadata_file = "meta_data.csv"
+    roboflow_train_path = Path("data/raw/roboflow/train")
+    roboflow_val_path = Path("data/raw/roboflow/valid")
+
     train_loader, val_loader = get_dataloaders(
-        data_path=Path(cfg.dataset.data_path),
-        metadata_file=cfg.dataset.metadata_file,
-        batch_size=cfg.hyperparameters.batch_size,
-        subset=cfg.dataset.subset,
+        data_path,
+        metadata_file,
+        roboflow_train_path,
+        roboflow_val_path,
+        batch_size=32,
+        img_dim=256,
+        subset=False,  # True if you want to reduce sizex
     )
     
     # Try different thresholds
-    thresholds = [0, 0.01, 0.025, 0.05]
+    thresholds = [0]#[0, 0.01, 0.025, 0.05]
     best_threshold = None
     best_f1 = -1
     
@@ -185,6 +192,6 @@ def main(cfg: DictConfig):
 
 
 if __name__ == "__main__":
-    #main()
+    main()
     
-    visualize_prediction(image='/Users/kristofferkjaer/Desktop/DTU_masters/F25/ABA/advanced_ba_project/data/raw/Forest Segmented/images/3484_sat_24.jpg', threshold=0)
+    #visualize_prediction(image='/Users/kristofferkjaer/Desktop/DTU_masters/F25/ABA/advanced_ba_project/data/raw/Forest Segmented/images/3484_sat_24.jpg', threshold=0)
