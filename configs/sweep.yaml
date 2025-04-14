@@ -1,0 +1,16 @@
+method: grid
+name: sweep_unet_grid
+metric:
+  name: Val F1
+  goal: maximize
+parameters:
+  hyperparameters.batch_size:
+    values: [16, 32]
+  hyperparameters.learning_rate:
+    values: [0.001, 0.0005]
+  hyperparameters.weight_decay:
+    values: [0.0, 0.0001]
+  hyperparameters.num_epochs:
+    value: 100
+  model.init_features:
+    values: [32, 64]

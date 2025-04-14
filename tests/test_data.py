@@ -1,11 +1,13 @@
 import pytest
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 from advanced_ba_project.data import get_dataloaders
 
+
 class MockDataset(Dataset):
     """A fake dataset for testing the dataloader without requiring actual data."""
+
     def __init__(self, num_samples=100, img_size=(3, 256, 256)):
         self.num_samples = num_samples
         self.img_size = img_size
@@ -18,11 +20,13 @@ class MockDataset(Dataset):
         mask = torch.randint(0, 2, (1, 256, 256))  # Fake binary mask
         return image, mask
 
+
 @pytest.fixture
 def mock_dataloader():
     """Fixture to create a dataloader with a mocked dataset."""
     dataset = MockDataset(num_samples=50)  # Fake dataset with 50 samples
     return DataLoader(dataset, batch_size=8, shuffle=True)
+
 
 def test_mock_dataloader(mock_dataloader):
     """Test that the mock dataloader correctly loads fake data."""
@@ -36,4 +40,3 @@ def test_mock_dataloader(mock_dataloader):
     # Check that it's a PyTorch tensor
     assert isinstance(images, torch.Tensor)
     assert isinstance(masks, torch.Tensor)
-

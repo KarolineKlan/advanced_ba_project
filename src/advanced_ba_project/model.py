@@ -84,7 +84,7 @@ class UNet(nn.Module):
         )
 
     def upsample_concat(self, x1, x2):
-        upsampled = nn.functional.interpolate(x1, scale_factor=2, mode='bilinear', align_corners=True)
+        upsampled = nn.functional.interpolate(x1, scale_factor=2, mode="bilinear", align_corners=True)
         return torch.cat([upsampled, x2], dim=1)
 
 
