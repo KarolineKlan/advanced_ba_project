@@ -157,6 +157,7 @@ def main(cfg: DictConfig):
         batch_size=cfg.hyperparameters.batch_size,
         subset=cfg.dataset.subset,
         seed=cfg.seed,
+        apply_augmentation=cfg.dataset.apply_augmentation,
     )
 
     model = UNet(

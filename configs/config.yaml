@@ -35,3 +35,4 @@ dataset:
   roboflow_val_path: data/raw/roboflow/valid
   roboflow_test_path: data/raw/roboflow/test
   subset: false
+  apply_augmentation: true
