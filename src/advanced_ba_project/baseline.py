@@ -154,16 +154,18 @@ def main(cfg: DictConfig):
     metadata_file = "meta_data.csv"
     roboflow_train_path = Path("data/raw/roboflow/train")
     roboflow_val_path = Path("data/raw/roboflow/valid")
+    roboflow_test_path = Path("data/raw/roboflow/test")
 
-    train_loader, val_loader = get_dataloaders(
+    train_loader, val_loader, test_loader = get_dataloaders(
         data_path,
         metadata_file,
         roboflow_train_path,
         roboflow_val_path,
+        roboflow_test_path,
         batch_size=32,
         img_dim=256,
         subset=False,  # True if you want to reduce sizex
-        apply_augmentations=False,
+        apply_augmentation=False,
     )
     
     # Try different thresholds
