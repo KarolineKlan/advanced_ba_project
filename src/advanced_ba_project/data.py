@@ -8,7 +8,41 @@ import torch
 from PIL import Image, ImageDraw
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, random_split
 from torchvision import transforms
+import torchvision.transforms.functional as TF
 
+
+class Augmentation(Dataset):
+    """Apply flips and rotations to images and masks."""
+    
+    def __init__(self, dataset, flip_prob=0.5, rotate_prob=0.3):
+        self.dataset = dataset
+        self.flip_prob = flip_prob
+        self.rotate_prob = rotate_prob
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+
+        image, mask = self.dataset[idx]
+        
+
+        if random.random() < self.flip_prob:
+            image = torch.flip(image, [2]) 
+            mask = torch.flip(mask, [2])
+        
+        # Random vertical flip
+        if random.random() < self.flip_prob:
+            image = torch.flip(image, [1])  
+            mask = torch.flip(mask, [1])
+        
+        # Random rotation (90, 180, or 270 degrees)
+        if random.random() < self.rotate_prob:
+            k = random.choice([1, 2, 3]) 
+            image = torch.rot90(image, k, [1, 2]) 
+            mask = torch.rot90(mask, k, [1, 2])
+        
+        return image, mask
 
 class ForestDataset(Dataset):
     """Custom dataset for loading satellite images of forests and their segmentation masks."""
@@ -146,7 +180,9 @@ def get_dataloaders(
     train_ratio: float = 0.80,
     seed: int = 42,
     subset: bool = False,
+    apply_augmentation: bool = False,
 ):
+    
     """Creates combined train and validation dataloaders from Forest and Roboflow datasets."""
 
     transform = transforms.Compose(
@@ -213,6 +249,10 @@ def get_dataloaders(
     torch.manual_seed(seed)
     train_indices = torch.randperm(len(combined_train)).tolist()
     combined_train = Subset(combined_train, train_indices)
+    
+    # Apply augmentations only to training data
+    if apply_augmentation:
+        combined_train = Augmentation(combined_train)
 
     # Shuffle validation set once (different seed for variation)
     torch.manual_seed(seed + 1)
@@ -248,6 +288,7 @@ if __name__ == "__main__":
         batch_size=32,
         img_dim=256,
         subset=False,  # True if you want to reduce size
+        apply_augmentation=True
     )
 
     def count_empty_masks(dataloader, name=""):

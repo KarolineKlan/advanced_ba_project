@@ -163,6 +163,7 @@ def main(cfg: DictConfig):
         batch_size=32,
         img_dim=256,
         subset=False,  # True if you want to reduce sizex
+        apply_augmentations=False,
     )
     
     # Try different thresholds
