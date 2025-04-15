@@ -1,6 +1,7 @@
 import random
 from pathlib import Path
 from typing import List, Tuple
+from tqdm import tqdm
 
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
@@ -366,7 +367,7 @@ def visualize_raw_data(
 
         axs[1, i].imshow(overlay)
         axs[1, i].axis("off")
-        axs[1, i].set_title(f"{dataset_name.capitalize()} Overlay {indices[i]}")
+        axs[1, i].set_title(f"{dataset_name.capitalize()} With Mask {indices[i]}")
 
     legend_elements = [
         Patch(facecolor='green', edgecolor='black', label='Forest', alpha=0.5),
@@ -376,6 +377,59 @@ def visualize_raw_data(
     plt.tight_layout(rect=[0, 0.05, 1, 1])
     plt.show()
 
+
+def summarize_raw_data(dataset_name: str, data_path: Path = None, metadata_file: str = None,
+                          image_dir: Path = None, label_dir: Path = None, img_dim: int = 256):
+    """
+    Summarize a raw dataset: number of images and percentage with forest labels.
+
+    Args:
+        dataset_name (str): 'forest' or 'roboflow'.
+        data_path (Path): Required for forest dataset.
+        metadata_file (str): Required for forest dataset.
+        image_dir (Path): Required for roboflow dataset.
+        label_dir (Path): Required for roboflow dataset.
+        img_dim (int): Image patch size.
+    """
+    transform = transforms.Compose([
+        transforms.Resize((img_dim, img_dim)),
+        transforms.ToTensor(),
+    ])
+
+    if dataset_name == "forest":
+        if not data_path or not metadata_file:
+            raise ValueError("For 'forest' dataset, provide data_path and metadata_file.")
+        dataset = ForestDataset(data_path, metadata_file, transform=transform, target_transform=transform)
+
+    elif dataset_name == "roboflow":
+        if not image_dir or not label_dir:
+            raise ValueError("For 'roboflow' dataset, provide image_dir and label_dir.")
+        dataset = RoboflowTreeDataset(
+            image_dir=image_dir,
+            label_dir=label_dir,
+            patch_size=img_dim,
+            transform=transform,
+            target_transform=transform
+        )
+    else:
+        raise ValueError("dataset_name must be either 'forest' or 'roboflow'.")
+
+    total = len(dataset)
+    forest = 0
+
+    for i in tqdm(range(total)):
+        _, mask = dataset[i]
+        if mask.sum() > 0:
+            forest += 1
+
+    percent = (forest / total) * 100
+    print(f"Dataset: {dataset_name}")
+    print(f"Total samples: {total}")
+    print(f"Amount of samples with forest: {forest} ({percent:.2f}%)")
+
+
+
+
 if __name__ == "__main__":
     data_path = Path("data/raw/Forest Segmented")
     metadata_file = "meta_data.csv"
@@ -383,19 +437,31 @@ if __name__ == "__main__":
     roboflow_val_path = Path("data/raw/roboflow/valid")
     roboflow_test_path = Path("data/raw/roboflow/test")
 
-    visualize_raw_data(
-        dataset_name="forest",
-        data_path=Path("data/raw/Forest Segmented"),
-        metadata_file="meta_data.csv",
-        indices=[0, 3, 7, 12, 25]
+    # visualize_raw_data(
+    #     dataset_name="forest",
+    #     data_path=Path("data/raw/Forest Segmented"),
+    #     metadata_file="meta_data.csv",
+    #     indices=[0, 3, 7, 12, 25]
+    # )
+
+    # visualize_raw_data(
+    #     dataset_name="roboflow",
+    #     data_path=None,
+    #     image_dir=Path("data/raw/roboflow/train/images"),
+    #     label_dir=Path("data/raw/roboflow/train/labelTxt"),
+    #     indices=[0,2,3,4,5]
+    # )
+
+    summarize_raw_data(
+    dataset_name="forest",
+    data_path=data_path,
+    metadata_file=metadata_file
     )
 
-    visualize_raw_data(
+    summarize_raw_data(
         dataset_name="roboflow",
-        data_path=None,
-        image_dir=Path("data/raw/roboflow/train/images"),
-        label_dir=Path("data/raw/roboflow/train/labelTxt"),
-        indices=[0,2,3,4,5]
+        image_dir=roboflow_train_path / "images",
+        label_dir=roboflow_train_path / "labelTxt"
     )
 
     # def count_empty_masks(dataloader, name=""):
