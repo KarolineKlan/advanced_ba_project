@@ -1,11 +1,14 @@
 import argparse
 import datetime
+import random
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
+from torchvision import transforms
 
-from advanced_ba_project.data import get_dataloaders
+from advanced_ba_project.data import ForestDataset, RoboflowTreeDataset, get_dataloaders
 from advanced_ba_project.logger import log
 from advanced_ba_project.model import UNet
 
@@ -24,79 +27,121 @@ def load_model(model_path, device):
     return model
 
 
-def visualize_predictions(model, val_loader, device, num_samples=5):
-    """Visualizes and compares predicted masks with ground truth."""
+def visualize_raw_and_predicted(
+    model,
+    dataset_name: str,
+    data_path: Path,
+    metadata_file: str = None,
+    image_dir: Path = None,
+    label_dir: Path = None,
+    num_images: int = 5,
+    img_dim: int = 256,
+    seed: int = 42,
+    indices: list = None,
+    device="cpu"
+):
 
-    # Generate a timestamp for unique filenames
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    save_path = f"reports/figures/mask_comparison_{timestamp}.png"
+    # Define transforms
+    transform = transforms.Compose([
+        transforms.Resize((img_dim, img_dim)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
+    ])
+    target_transform = transforms.Compose([
+        transforms.Resize((img_dim, img_dim)),
+        transforms.ToTensor()
+    ])
 
-    images, true_masks = next(iter(val_loader))  # Get a batch of validation images
-    images, true_masks = images.to(device), true_masks.to(device)
+    # Load dataset
+    if dataset_name == "forest":
+        dataset = ForestDataset(
+            data_path=data_path,
+            metadata_file=metadata_file,
+            transform=transform,
+            target_transform=target_transform
+        )
+    elif dataset_name == "roboflow":
+        dataset = RoboflowTreeDataset(
+            image_dir=image_dir,
+            label_dir=label_dir,
+            patch_size=img_dim,
+            transform=transform,
+            target_transform=target_transform
+        )
+    else:
+        raise ValueError("dataset_name must be either 'forest' or 'roboflow'")
 
+    # Pick indices
+    if indices is None:
+        random.seed(seed)
+        indices = random.sample(range(len(dataset)), min(num_images, len(dataset)))
+    else:
+        num_images = len(indices)
+
+    # Extract images/masks
+    samples = [dataset[i] for i in indices]
+    images = torch.stack([img for img, _ in samples]).to(device)
+    masks = torch.stack([mask for _, mask in samples]).to(device)
+
+    # Predict
+    model.eval()
     with torch.no_grad():
-        predicted_masks = model(images)
-        predicted_masks = torch.sigmoid(predicted_masks)  # Convert logits to probability
-        predicted_masks = (predicted_masks > 0.5).float()  # Apply threshold
+        preds = model(images)
+        preds = torch.sigmoid(preds)
+        preds = (preds > 0.5).float()
 
-    # Convert tensors to NumPy for visualization
-    images = images.cpu().numpy().transpose(0, 2, 3, 1)  # [N, C, H, W] -> [N, H, W, C]
-    true_masks = true_masks.cpu().numpy().squeeze(1)  # Remove single-channel dim
-    predicted_masks = predicted_masks.cpu().numpy().squeeze(1)  # Remove single-channel dim
+    # Plot
+    fig, axs = plt.subplots(3, num_images, figsize=(4 * num_images, 12))
 
-    # Plot images, ground truth masks, and predicted masks
-    fig, axes = plt.subplots(num_samples, 3, figsize=(10, num_samples * 3))
+    for i in range(num_images):
+        img = images[i].cpu().permute(1, 2, 0).numpy()
+        img = (img * 0.5) + 0.5
+        img = np.clip(img, 0, 1)
 
-    for i in range(num_samples):
-        axes[i, 0].imshow((images[i] * 0.5) + 0.5)  # Undo normalization for visualization
-        axes[i, 0].set_title("Original Image")
-        axes[i, 0].axis("off")
+        gt_mask = masks[i].cpu().squeeze().numpy()
+        pred_mask = preds[i].cpu().squeeze().numpy()
 
-        axes[i, 1].imshow(true_masks[i], cmap="gray")
-        axes[i, 1].set_title("Ground Truth Mask")
-        axes[i, 1].axis("off")
+        forest_color = np.array([0, 1, 0])
+        nonforest_color = np.array([1, 0.3, 0])
+        alpha = 0.5
 
-        axes[i, 2].imshow(predicted_masks[i], cmap="gray")
-        axes[i, 2].set_title("Predicted Mask")
-        axes[i, 2].axis("off")
+        # Ground Truth overlay
+        overlay_gt = img.copy()
+        mask_bool = gt_mask > 0.5
+        overlay_gt[mask_bool] = (1 - alpha) * overlay_gt[mask_bool] + alpha * forest_color
+        overlay_gt[~mask_bool] = (1 - alpha) * overlay_gt[~mask_bool] + alpha * nonforest_color
+
+        # Prediction overlay
+        overlay_pred = img.copy()
+        mask_pred_bool = pred_mask > 0.5
+        overlay_pred[mask_pred_bool] = (1 - alpha) * overlay_pred[mask_pred_bool] + alpha * forest_color
+        overlay_pred[~mask_pred_bool] = (1 - alpha) * overlay_pred[~mask_pred_bool] + alpha * nonforest_color
+
+        axs[0, i].imshow(img)
+        axs[0, i].set_title(f"Original {indices[i]}")
+        axs[1, i].imshow(overlay_gt)
+        axs[1, i].set_title(f"Ground Truth {indices[i]}")
+        axs[2, i].imshow(overlay_pred)
+        axs[2, i].set_title(f"Prediction {indices[i]}")
+
+        for ax in axs[:, i]:
+            ax.axis("off")
 
     plt.tight_layout()
-    plt.savefig(save_path)
-    log.success(f"Mask comparison saved as {save_path}")
     plt.show()
 
 
 if __name__ == "__main__":
     # CLI Argument Parser
-    parser = argparse.ArgumentParser(description="Visualize U-Net model predictions")
-    parser.add_argument(
-        "--model-path",
-        type=str,
-        required=True,
-        help="Path of the trained model (e.g. models/unet_model_2024-03-12_12-11-43.pth)",
+    model = load_model("models/unet_model_iconic-sweep-16.pth", device="cpu")
+
+    visualize_raw_and_predicted(
+        model=model,
+        data_path=Path("data/raw/forest"),
+        dataset_name="roboflow",
+        image_dir=Path("data/raw/roboflow/train/images"),
+        label_dir=Path("data/raw/roboflow/train/labelTxt"),
+        num_images=5,
+        img_dim=256,
+        device="cpu"
     )
-    parser.add_argument("--batch-size", type=int, default=8, help="Batch size for visualization")
-    parser.add_argument("--subset", type=str, default="true", help="Use small subset for quick testing (true/false)")
-    parser.add_argument("--num-samples", type=int, default=5, help="Number of samples to visualize")
-    args = parser.parse_args()
-
-    # Convert subset argument from string to boolean
-    subset = args.subset.lower() in ["true", "1", "yes"]
-
-    # Device selection
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    log.info("Loading validation data...")
-    data_path = Path("data/raw/Forest Segmented")
-    metadata_file = "meta_data.csv"
-    roboflow_train_path = Path("data/raw/roboflow/train")
-    roboflow_val_path = Path("data/raw/roboflow/valid")
-    roboflow_test_path = Path("data/raw/roboflow/test")
-    metadata_file = "meta_data.csv"
-    _, val_loader, _ = get_dataloaders(data_path, metadata_file, roboflow_train_path, roboflow_val_path, roboflow_test_path, args.batch_size, subset=subset)
-
-    # Load trained model
-    model = load_model(args.model_path, device)
-
-    # Visualize predictions
-    visualize_predictions(model, val_loader, device, num_samples=args.num_samples)

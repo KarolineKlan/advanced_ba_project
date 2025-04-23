@@ -17,7 +17,7 @@ class UNet(nn.Module):
         # Bottom
         self.bottleneck = self.bottom_layer(features * 8, features * 16)
 
-        # Expanding path (use skip connection sizes!)
+        # Expanding path
         self.dec1 = self.expanding_block(features * 16 + features * 8, features * 8)
         self.dec2 = self.expanding_block(features * 8 + features * 4, features * 4)
         self.dec3 = self.expanding_block(features * 4 + features * 2, features * 2)
@@ -59,7 +59,7 @@ class UNet(nn.Module):
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
-            nn.Dropout2d(self.dropout_rate),  # 🔥 Dropout added here
+            nn.Dropout2d(self.dropout_rate),
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),

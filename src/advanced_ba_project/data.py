@@ -1,50 +1,50 @@
 import random
 from pathlib import Path
 from typing import List, Tuple
-from tqdm import tqdm
 
-from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
+import torchvision.transforms.functional as tf
+from matplotlib.patches import Patch
 from PIL import Image, ImageDraw
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, random_split
 from torchvision import transforms
-import torchvision.transforms.functional as TF
+from tqdm import tqdm
 
 
 class Augmentation(Dataset):
     """Apply flips and rotations to images and masks."""
-    
+
     def __init__(self, dataset, flip_prob=0.5, rotate_prob=0.3):
         self.dataset = dataset
         self.flip_prob = flip_prob
         self.rotate_prob = rotate_prob
-    
+
     def __len__(self):
         return len(self.dataset)
-    
+
     def __getitem__(self, idx):
 
         image, mask = self.dataset[idx]
-        
+
 
         if random.random() < self.flip_prob:
-            image = torch.flip(image, [2]) 
+            image = torch.flip(image, [2])
             mask = torch.flip(mask, [2])
-        
+
         # Random vertical flip
         if random.random() < self.flip_prob:
-            image = torch.flip(image, [1])  
+            image = torch.flip(image, [1])
             mask = torch.flip(mask, [1])
-        
+
         # Random rotation (90, 180, or 270 degrees)
         if random.random() < self.rotate_prob:
-            k = random.choice([1, 2, 3]) 
-            image = torch.rot90(image, k, [1, 2]) 
+            k = random.choice([1, 2, 3])
+            image = torch.rot90(image, k, [1, 2])
             mask = torch.rot90(mask, k, [1, 2])
-        
+
         return image, mask
 
 class ForestDataset(Dataset):
@@ -88,8 +88,8 @@ class ForestDataset(Dataset):
         mask_path = self.mask_paths[index]
 
         # Open images
-        image = Image.open(img_path).convert("RGB")  # Convert image to RGB
-        mask = Image.open(mask_path).convert("L")  # Convert mask to grayscale
+        image = Image.open(img_path).convert("RGB")
+        mask = Image.open(mask_path).convert("L")
 
         # Apply transformations
         if self.transform:
@@ -137,7 +137,7 @@ class RoboflowTreeDataset(Dataset):
             for line in file:
                 parts = line.strip().split()
                 if len(parts) < 9:
-                    continue  # Not a valid polygon line
+                    continue
                 label = parts[-2]
                 if label.lower() != "tree":
                     continue
@@ -182,7 +182,7 @@ def get_dataloaders(
     subset: bool = False,
     apply_augmentation: bool = False,
 ):
-    
+
     """Creates combined train and validation dataloaders from Forest and Roboflow datasets."""
 
     transform = transforms.Compose(
@@ -249,7 +249,7 @@ def get_dataloaders(
     torch.manual_seed(seed)
     train_indices = torch.randperm(len(combined_train)).tolist()
     combined_train = Subset(combined_train, train_indices)
-    
+
     # Apply augmentations only to training data
     if apply_augmentation:
         combined_train = Augmentation(combined_train)
