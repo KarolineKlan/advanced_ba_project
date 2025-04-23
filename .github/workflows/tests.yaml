@@ -35,6 +35,14 @@ jobs:
 
       - name: Run tests & coverage
         run: |
-          export HYDRA_FULL_ERROR=1  # Helps avoid Hydra-related silent fails
+          $env:HYDRA_FULL_ERROR="1"; coverage run --source=advanced_ba_project -m pytest tests/; coverage report -m
+        if: runner.os == 'Windows'
+        shell: pwsh
+      
+      - name: Run tests & coverage
+        run: |
+          export HYDRA_FULL_ERROR=1
           coverage run --source=advanced_ba_project -m pytest tests/
           coverage report -m
+        if: runner.os != 'Windows'
+        
