@@ -1,10 +1,28 @@
-# advanced_ba_project
+# AI for the Betterment of Society
 
-DTU course project
+<figure>
+    <div style="text-align: center;">
+        <img src="Readme_Image.png" width="100%" alt="Unet">
+    </div>
+    <figcaption style="text-align: center; font-style: italic; font-size: smaller;">
+        .
+    </figcaption>
+</figure>
+
+This repository was developed as a part of the final project in Advanced Business Analytics course 42578 at DTU. We refer to the [**EXPLAINER NOTEBOOK**](https://github.com/KarolineKlan/advanced_ba_project/blob/main/notebooks/Explainer_Notebook.ipynb) for all details of the project.
+
+
+Team members:
+
+- Daniel Ries (s214641)
+- Karoline Klan Hansen (s214638)
+- Kristoffer Helms Kjær (s214609)
+- Felix Lund Frandsen (s214584)
+
 
 ## Project structure
 
-The directory structure of the project looks like this:
+The project follows a cookiecutter directory structure, though not all components are utilized within the scope of this work:
 ```txt
 ├── .github/                  # Github actions and dependabot
 │   ├── dependabot.yaml
