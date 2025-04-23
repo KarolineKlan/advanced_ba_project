@@ -1,16 +1,18 @@
+import random
+from pathlib import Path
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from pathlib import Path
-import wandb
-import numpy as np
-import random
 from sklearn.metrics import accuracy_score, f1_score, jaccard_score, precision_score, recall_score
 
+import wandb
 from advanced_ba_project.data import get_dataloaders
-from advanced_ba_project.model import UNet
 from advanced_ba_project.logger import log
-from advanced_ba_project.train import train_model, DiceBCELoss
+from advanced_ba_project.model import UNet
+from advanced_ba_project.train import DiceBCELoss, train_model
+
 
 def set_seed(seed: int = 42):
     random.seed(seed)
@@ -67,7 +69,7 @@ def sweep_train():
         device=device,
     )
 
-    # ✅ Evaluate on test set
+    # Evaluate on test set
     model.eval()
     test_loss = 0.0
     total_pixels = 0
@@ -112,7 +114,7 @@ def sweep_train():
     model_path = f"models/unet_model_{run_name}.pth"
     torch.save(model.state_dict(), model_path)
     wandb.save(model_path)
-    print(f"✅ Model saved to {model_path}")
+    print(f"Model saved to {model_path}")
 
     wandb.finish()
 

@@ -22,4 +22,4 @@ parameters:
   seed:
     value: 42
   apply_augmentation:
-    value: [true, false]
+    values: [true, false]

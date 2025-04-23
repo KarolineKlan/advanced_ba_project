@@ -1,10 +1,10 @@
 import os
+import random
 from pathlib import Path
 
 import hydra
 import matplotlib.pyplot as plt
 import numpy as np
-import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -17,12 +17,13 @@ from advanced_ba_project.data import get_dataloaders
 from advanced_ba_project.logger import log
 from advanced_ba_project.model import UNet
 
+
 def set_seed(seed: int = 42):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # if using multi-GPU
+    torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
@@ -226,12 +227,12 @@ def main(cfg: DictConfig):
             metrics["recall"] += recall_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
             metrics["f1"] += f1_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
             metrics["iou"] += jaccard_score(masks_flat, preds_flat, zero_division=0) * batch_pixels
-        
+
     # Calculate average metrics
     test_loss /= len(test_loader)
     for k in metrics:
         metrics[k] /= total_pixels
-    
+
     # Log test metrics
     log.info(f"Test Loss: {test_loss:.4f}")
     log.info(
@@ -247,7 +248,7 @@ def main(cfg: DictConfig):
             "Test F1": metrics["f1"],
             "Test IoU": metrics["iou"],
         }
-    ) 
+    )
 
     wandb.finish()
 

@@ -5,15 +5,15 @@ seed: 42
 
 # Training hyperparameters
 hyperparameters:
-  batch_size: 32                  # Seems stable for now
-  num_epochs: 150                 # Keep long to observe overfitting
-  learning_rate: 0.0001           # Lower LR helped generalization before
-  weight_decay: 0.0001           # Lower regularization
+  batch_size: 32
+  num_epochs: 150
+  learning_rate: 0.0001
+  weight_decay: 0.0001
 
 # Model config (new!)
 model:
-  init_features: 64              # Can try 32 if model is too large
-  dropout_rate: 0.3              # 🔥 Add this to control dropout
+  init_features: 64
+  dropout_rate: 0.3
 
 # Optimizer settings
 optimizer:

@@ -1,9 +1,7 @@
-from data import ForestDataset, get_dataloaders
-import hydra
 import os
 from pathlib import Path
-import torch
-from tqdm import tqdm
+
+import hydra
 import numpy as np
 import random
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, jaccard_score
@@ -17,33 +15,33 @@ import matplotlib.patches as mpatches
 def green_tree_detector(image_batch, threshold=0.1):
     """
     Simple baseline that detects trees based on green channel values.
-    
+
     Args:
         image_batch: Tensor of shape [batch_size, 3, 256, 256]
         threshold: How much greener a pixel must be compared to other channels
-    
+
     Returns:
         Tensor of shape [batch_size, 1, 256, 256] with binary tree mask
     """
     batch_size = image_batch.shape[0]
     device = image_batch.device
-    
+
     # Extract RGB channels
     r = image_batch[:, 0]  # Red channel
     g = image_batch[:, 1]  # Green channel
     b = image_batch[:, 2]  # Blue channel
-    
+
     # Consider a pixel a tree if green value is dominant
     # g > r + threshold AND g > b + threshold
     tree_mask = ((g > (r + threshold)) & (g > (b + threshold))).float()
-    
+
     # Reshape to [batch_size, 1, 256, 256] to match ground truth format
     return tree_mask.unsqueeze(1)
 
 def evaluate_detector(dataloader, threshold=0.1):
     """Evaluate the green tree detector on the given dataloader."""
     device = next(iter(dataloader))[0].device
-    
+
     # Initialize metrics
     total_pixels = 0
     metrics = {
@@ -53,33 +51,33 @@ def evaluate_detector(dataloader, threshold=0.1):
         'f1': 0,
         'iou': 0
     }
-    
+
     # Process each batch
     for images, masks in tqdm(dataloader, desc="Evaluating baseline detector"):
         # Generate predictions
         predictions = green_tree_detector(images, threshold=threshold)
-        
+
         # Convert to binary predictions (0 or 1)
         pred_binary = (predictions > 0.5).float()
-        
+
         # Flatten tensors for metric calculation
         pred_flat = pred_binary.cpu().numpy().flatten().astype(int)
         mask_flat = masks.cpu().numpy().flatten().astype(int)
-        
+
         # Update metrics
         batch_pixels = pred_flat.shape[0]
         total_pixels += batch_pixels
-        
+
         metrics['accuracy'] += accuracy_score(mask_flat, pred_flat) * batch_pixels
         metrics['precision'] += precision_score(mask_flat, pred_flat, zero_division=0) * batch_pixels
         metrics['recall'] += recall_score(mask_flat, pred_flat, zero_division=0) * batch_pixels
         metrics['f1'] += f1_score(mask_flat, pred_flat, zero_division=0) * batch_pixels
         metrics['iou'] += jaccard_score(mask_flat, pred_flat, zero_division=0) * batch_pixels
-    
+
     # Calculate final metrics
     for key in metrics:
         metrics[key] /= total_pixels
-    
+
     return metrics
 
 
@@ -147,30 +145,30 @@ def main(cfg: DictConfig):
         subset=False,  # True if you want to reduce sizex
         apply_augmentation=True,
     )
-    
+
     # Try different thresholds
     thresholds = [0]#[0, 0.01, 0.025, 0.05]
     best_threshold = None
     best_f1 = -1
-    
+
     print("Evaluating green tree detector baseline with different thresholds...")
     for threshold in thresholds:
         print(f"\nTesting threshold: {threshold}")
         metrics = evaluate_detector(val_loader, threshold=threshold)
-        
+
         print(f"Results:")
         print(f"  Accuracy:  {metrics['accuracy']:.4f}")
         print(f"  Precision: {metrics['precision']:.4f}")
         print(f"  Recall:    {metrics['recall']:.4f}")
         print(f"  F1 Score:  {metrics['f1']:.4f}")
         print(f"  IoU:       {metrics['iou']:.4f}")
-        
+
         if metrics['f1'] > best_f1:
             best_f1 = metrics['f1']
             best_threshold = threshold
-    
+
     print(f"\nBest threshold: {best_threshold} with F1 score: {best_f1:.4f}")
-    
+
     return None
 
 def visualize_baseline_predictions_colored(val_loader, device, green_tree_detector, threshold=0.01, num_samples=10, seed=42):
