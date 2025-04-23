@@ -5,10 +5,14 @@ from pathlib import Path
 import torch
 from tqdm import tqdm
 import numpy as np
+import random
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, jaccard_score
 
 from omegaconf import DictConfig
 from PIL import Image
+import datetime
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 def green_tree_detector(image_batch, threshold=0.1):
     """
@@ -79,72 +83,48 @@ def evaluate_detector(dataloader, threshold=0.1):
     return metrics
 
 
-def visualize_prediction(image, threshold=0.01, ground_truth=None):
-    """
-    Takes a single image and visualizes the original image alongside the predicted mask.
-    
-    Args:
-        image: Tensor of shape [3, 256, 256] - single RGB image
-        threshold: Threshold for green detection
-        ground_truth: Optional ground truth mask of shape [1, 256, 256]
-    
-    Returns:
-        Displays the visualization and returns the predicted mask
-    """
-    import matplotlib.pyplot as plt
-    
-    
 
-    image = Image.open(image).convert("RGB")
-    image = np.array(image)
-    image = image.transpose(2, 0, 1)
-    
-    # Ensure image is a tensor with batch dimension and on CPU
-    if isinstance(image, np.ndarray):
-        image = torch.from_numpy(image)
-    if len(image.shape) == 3:
-        image = image.unsqueeze(0)  # Add batch dimension
-        
-    # Generate prediction
+def visualize_baseline_predictions(val_loader, device, green_tree_detector, threshold=0.01, num_samples=5):
+    """Visualizes predictions from the baseline green detector alongside ground truth."""
+
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    os.makedirs("reports/figures", exist_ok=True)
+    save_path = f"reports/figures/baseline_mask_comparison_{timestamp}.png"
+
+    images, true_masks = next(iter(val_loader))
+    images, true_masks = images.to(device), true_masks.to(device)
+
+    # Run baseline green detector
     with torch.no_grad():
-        prediction = green_tree_detector(image, threshold=threshold)
-    
-    # Convert to numpy for visualization
-    image_np = image[0].permute(1,2,0).cpu().numpy()  # [H, W, 3]
-    mask_np = prediction[0, 0].cpu().numpy()            # [H, W]
-    
-    # Create figure
-    n_plots = 3 if ground_truth is not None else 2
-    fig, axes = plt.subplots(1, n_plots, figsize=(4*n_plots, 4))
-    
-    # Plot original image
-    axes[0].imshow(image_np)
-    axes[0].set_title("Original Image")
-    axes[0].axis("off")
-    
-    # Plot predicted mask
-    axes[1].imshow(mask_np, cmap='viridis')
-    axes[1].set_title(f"Predicted Mask (threshold={threshold:.2f})")
-    axes[1].axis("off")
-    
-    # Plot ground truth if provided
-    if ground_truth is not None:
-        if isinstance(ground_truth, torch.Tensor):
-            if len(ground_truth.shape) == 4:
-                gt_np = ground_truth[0, 0].cpu().numpy()
-            else:
-                gt_np = ground_truth[0].cpu().numpy()
-        else:
-            gt_np = ground_truth
-            
-        axes[2].imshow(gt_np, cmap='viridis')
-        axes[2].set_title("Ground Truth")
-        axes[2].axis("off")
-    
+        predicted_masks = green_tree_detector(images, threshold=threshold)
+        predicted_masks = (predicted_masks > 0.5).float()
+
+    # Convert tensors to NumPy for visualization
+    images = images.cpu().numpy().transpose(0, 2, 3, 1)
+    true_masks = true_masks.cpu().numpy().squeeze(1)
+    predicted_masks = predicted_masks.cpu().numpy().squeeze(1)
+
+    # Plot images, ground truth masks, and predicted masks
+    fig, axes = plt.subplots(num_samples, 3, figsize=(10, num_samples * 3))
+
+    for i in range(num_samples):
+        axes[i, 0].imshow((images[i] * 0.5) + 0.5)  # Undo normalization
+        axes[i, 0].set_title("Original Image")
+        axes[i, 0].axis("off")
+
+        axes[i, 1].imshow(true_masks[i], cmap="gray")
+        axes[i, 1].set_title("Ground Truth Mask")
+        axes[i, 1].axis("off")
+
+        axes[i, 2].imshow(predicted_masks[i], cmap="gray")
+        axes[i, 2].set_title(f"Baseline Mask (threshold={threshold:.2f})")
+        axes[i, 2].axis("off")
+
     plt.tight_layout()
+    plt.savefig(save_path)
+    print(f"[INFO] Baseline mask comparison saved as {save_path}")
     plt.show()
-    
-    return prediction
+
 
 
 
@@ -165,7 +145,7 @@ def main(cfg: DictConfig):
         batch_size=32,
         img_dim=256,
         subset=False,  # True if you want to reduce sizex
-        apply_augmentation=False,
+        apply_augmentation=True,
     )
     
     # Try different thresholds
@@ -193,8 +173,92 @@ def main(cfg: DictConfig):
     
     return None
 
+def visualize_baseline_predictions_colored(val_loader, device, green_tree_detector, threshold=0.01, num_samples=10, seed=42):
+    """
+    Visualizes baseline green detector masks overlaid in green/red with legend and fixed 5x2 layout.
+
+    Args:
+        val_loader: DataLoader for validation images and masks
+        device: Device for computation
+        green_tree_detector: function for green detection (returns mask)
+        threshold: float, green detection threshold
+        num_samples: number of samples to show (will be capped at 10 for 5x2 grid)
+        seed: random seed for sample selection
+    """
+    # Ensure exactly 10 samples for 5x2 layout
+    num_samples = min(num_samples, 10)
+    
+    # Seed for reproducibility
+    random.seed(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    # Setup save path
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    os.makedirs("reports/figures", exist_ok=True)
+    save_path = f"reports/figures/baseline_colored_overlay_{timestamp}.png"
+
+    # Load a batch
+    images, true_masks = next(iter(val_loader))
+    images, true_masks = images.to(device), true_masks.to(device)
+
+    # Randomly choose samples
+    indices = random.sample(range(images.shape[0]), min(num_samples, images.shape[0]))
+
+    with torch.no_grad():
+        predictions = green_tree_detector(images, threshold=threshold)
+        predictions = (predictions > 0.5).float()
+
+    # Convert for visualization
+    images_np = images.cpu().numpy().transpose(0, 2, 3, 1)
+    predictions_np = predictions.cpu().numpy().squeeze(1)
+
+    # Set up 2 rows × 5 columns layout
+    fig, axes = plt.subplots(2, 5, figsize=(18, 6))
+
+    for plot_idx, idx in enumerate(indices):
+        img = (images_np[idx] * 0.5) + 0.5  # Undo normalization
+        mask = predictions_np[idx]
+
+        overlay = img.copy()
+        red = np.array([1, 0.3, 0])
+        green = np.array([0, 1, 0])
+
+        overlay[mask == 1] = green  # Forest
+        overlay[mask == 0] = red    # Non-forest
+
+        col = plot_idx
+        axes[0, col].imshow(img)
+        axes[0, col].set_title(f"Original {idx}")
+        axes[0, col].axis("off")
+
+        axes[1, col].imshow(overlay)
+        axes[1, col].set_title(f"With Mask {idx}")
+        axes[1, col].axis("off")
+
+    # Legend
+    forest_patch = mpatches.Patch(color='#228B22', label='Forest')
+    non_forest_patch = mpatches.Patch(color='#CD5C5C', label='Non-Forest')
+    fig.legend(handles=[forest_patch, non_forest_patch], loc='lower center', ncol=2, bbox_to_anchor=(0.5, -0.01))
+
+    plt.tight_layout()
+    plt.subplots_adjust(bottom=0.1)
+    plt.savefig(save_path)
+    print(f"[INFO] Baseline green overlay (5x2 layout) saved to {save_path}")
+    plt.show()
 
 if __name__ == "__main__":
-    main()
+    #main()
+    data_path = Path("data/raw/Forest Segmented")
+    metadata_file = "meta_data.csv"
+    roboflow_train_path = Path("data/raw/roboflow/train")
+    roboflow_val_path = Path("data/raw/roboflow/valid")
+    roboflow_test_path = Path("data/raw/roboflow/test")
+    metadata_file = "meta_data.csv"
     
+    _, val_loader, _ = get_dataloaders(data_path, metadata_file, roboflow_train_path, roboflow_val_path, roboflow_test_path, 8, subset=True)
+    #visualize_baseline_predictions(val_loader, device='mps', green_tree_detector=green_tree_detector, threshold=0.01, num_samples=5)
+    
+    
+    visualize_baseline_predictions_colored(val_loader, device='mps', green_tree_detector=green_tree_detector, threshold=0, num_samples=5, seed=41)
     #visualize_prediction(image='/Users/kristofferkjaer/Desktop/DTU_masters/F25/ABA/advanced_ba_project/data/raw/Forest Segmented/images/3484_sat_24.jpg', threshold=0)
