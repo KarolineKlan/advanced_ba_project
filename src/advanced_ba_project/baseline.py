@@ -13,7 +13,9 @@ from PIL import Image
 import datetime
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from advanced_ba_project.data import get_dataloaders
+from torchvision import transforms
+from advanced_ba_project.data import ForestDataset, RoboflowTreeDataset, get_dataloaders
+
 
 def green_tree_detector(image_batch, threshold=0.1):
     """
@@ -247,19 +249,197 @@ def visualize_baseline_predictions_colored(val_loader, device, green_tree_detect
     plt.savefig(save_path)
     print(f"[INFO] Baseline green overlay (5x2 layout) saved to {save_path}")
     plt.show()
+    
+    
+    
+def visualize_raw_and_baseline(
+    green_tree_detector,
+    dataset_name: str,
+    data_path: Path,
+    metadata_file: str = None,
+    image_dir: Path = None,
+    label_dir: Path = None,
+    num_images: int = 5,
+    img_dim: int = 256,
+    seed: int = 42,
+    indices: list = None,
+    device="cpu",
+    threshold: float = 0.01
+):
+        # Define transforms
+        transform = transforms.Compose([
+            transforms.Resize((img_dim, img_dim)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
+        ])
+        target_transform = transforms.Compose([
+            transforms.Resize((img_dim, img_dim)),
+            transforms.ToTensor()
+        ])
+
+        # Load dataset
+        if dataset_name == "forest":
+            dataset = ForestDataset(
+                data_path=data_path,
+                metadata_file=metadata_file,
+                transform=transform,
+                target_transform=target_transform
+            )
+        elif dataset_name == "roboflow":
+            dataset = RoboflowTreeDataset(
+                image_dir=image_dir,
+                label_dir=label_dir,
+                patch_size=img_dim,
+                transform=transform,
+                target_transform=target_transform
+            )
+        else:
+            raise ValueError("dataset_name must be either 'forest' or 'roboflow'")
+
+        # Pick indices
+        if indices is None:
+            random.seed(seed)
+            indices = random.sample(range(len(dataset)), min(num_images, len(dataset)))
+        else:
+            num_images = len(indices)
+
+        # Extract images/masks
+        samples = [dataset[i] for i in indices]
+        images = torch.stack([img for img, _ in samples]).to(device)
+        masks = torch.stack([mask for _, mask in samples]).to(device)
+
+        # Predict using baseline
+        with torch.no_grad():
+            preds = green_tree_detector(images, threshold=threshold)
+            preds = (preds > 0.5).float()
+
+        # Plot
+        fig, axs = plt.subplots(3, num_images, figsize=(4 * num_images, 12))
+
+        for i in range(num_images):
+            img = images[i].cpu().permute(1, 2, 0).numpy()
+            img = (img * 0.5) + 0.5
+            img = np.clip(img, 0, 1)
+
+            gt_mask = masks[i].cpu().squeeze().numpy()
+            pred_mask = preds[i].cpu().squeeze().numpy()
+
+            forest_color = np.array([0, 1, 0])      # Green
+            nonforest_color = np.array([1, 0.3, 0]) # Reddish
+            alpha = 0.5
+
+            # Ground Truth overlay
+            overlay_gt = img.copy()
+            mask_bool = gt_mask > 0.5
+            overlay_gt[mask_bool] = (1 - alpha) * overlay_gt[mask_bool] + alpha * forest_color
+            overlay_gt[~mask_bool] = (1 - alpha) * overlay_gt[~mask_bool] + alpha * nonforest_color
+
+            # Baseline Prediction overlay
+            overlay_pred = img.copy()
+            mask_pred_bool = pred_mask > 0.5
+            overlay_pred[mask_pred_bool] = (1 - alpha) * overlay_pred[mask_pred_bool] + alpha * forest_color
+            overlay_pred[~mask_pred_bool] = (1 - alpha) * overlay_pred[~mask_pred_bool] + alpha * nonforest_color
+
+            axs[0, i].imshow(img)
+            axs[0, i].set_title(f"Original {indices[i]}")
+            axs[1, i].imshow(overlay_gt)
+            axs[1, i].set_title(f"Ground Truth {indices[i]}")
+            axs[2, i].imshow(overlay_pred)
+            axs[2, i].set_title(f"Baseline Mask {indices[i]}")
+
+            for ax in axs[:, i]:
+                ax.axis("off")
+
+        plt.tight_layout()
+        plt.show()
+        
+        
+    
+def get_top_forest_ids(
+    dataset_name: str,
+    data_path: Path,
+    metadata_file: str = None,
+    image_dir: Path = None,
+    label_dir: Path = None,
+    img_dim: int = 256,
+    top_k: int = 5
+):
+    transform = transforms.Compose([
+        transforms.Resize((img_dim, img_dim)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
+    ])
+    target_transform = transforms.Compose([
+        transforms.Resize((img_dim, img_dim)),
+        transforms.ToTensor()
+    ])
+
+    if dataset_name == "forest":
+        dataset = ForestDataset(
+            data_path=data_path,
+            metadata_file=metadata_file,
+            transform=transform,
+            target_transform=target_transform
+        )
+    elif dataset_name == "roboflow":
+        dataset = RoboflowTreeDataset(
+            image_dir=image_dir,
+            label_dir=label_dir,
+            patch_size=img_dim,
+            transform=transform,
+            target_transform=target_transform
+        )
+    else:
+        raise ValueError("dataset_name must be either 'forest' or 'roboflow'")
+
+    forest_coverage = []
+    for idx in range(len(dataset)):
+        _, mask = dataset[idx]
+        forest_pixels = (mask > 0.5).sum().item()
+        forest_coverage.append((idx, forest_pixels))
+
+    top_ids = sorted(forest_coverage, key=lambda x: x[1], reverse=True)[:top_k]
+    return [idx for idx, _ in top_ids]
 
 if __name__ == "__main__":
+    
+    
+    top_ids = get_top_forest_ids(
+    dataset_name="roboflow",
+    data_path=Path("data/raw/forest"),
+    image_dir=Path("data/raw/roboflow/test/images"),
+    label_dir=Path("data/raw/roboflow/test/labelTxt"),
+    img_dim=256,
+    top_k=15
+)
+    print("Top forest IDs:", top_ids)
+
     #main()
-    data_path = Path("data/raw/Forest Segmented")
-    metadata_file = "meta_data.csv"
-    roboflow_train_path = Path("data/raw/roboflow/train")
-    roboflow_val_path = Path("data/raw/roboflow/valid")
-    roboflow_test_path = Path("data/raw/roboflow/test")
-    metadata_file = "meta_data.csv"
+    # data_path = Path("data/raw/Forest Segmented")
+    # metadata_file = "meta_data.csv"
+    # roboflow_train_path = Path("data/raw/roboflow/train")
+    # roboflow_val_path = Path("data/raw/roboflow/valid")
+    # roboflow_test_path = Path("data/raw/roboflow/test")
+    # metadata_file = "meta_data.csv"
     
-    _, val_loader, _ = get_dataloaders(data_path, metadata_file, roboflow_train_path, roboflow_val_path, roboflow_test_path, 8, subset=True)
-    #visualize_baseline_predictions(val_loader, device='mps', green_tree_detector=green_tree_detector, threshold=0.01, num_samples=5)
+    # _, val_loader, _ = get_dataloaders(data_path, metadata_file, roboflow_train_path, roboflow_val_path, roboflow_test_path, 8, subset=False)
+    # #visualize_baseline_predictions(val_loader, device='mps', green_tree_detector=green_tree_detector, threshold=0.01, num_samples=5)
     
     
-    visualize_baseline_predictions_colored(val_loader, device='mps', green_tree_detector=green_tree_detector, threshold=0, num_samples=5, seed=41)
+    # visualize_baseline_predictions_colored(val_loader, device='mps', green_tree_detector=green_tree_detector, threshold=0, num_samples=5, seed=42)
+    
+    visualize_raw_and_baseline(
+        green_tree_detector=green_tree_detector,
+        data_path=Path("data/raw/forest"),
+        dataset_name="roboflow",
+        image_dir=Path("data/raw/roboflow/test/images"),
+        label_dir=Path("data/raw/roboflow/test/labelTxt"),
+        num_images=5,
+        img_dim=256,
+        device="mps",
+        indices=top_ids[5:],
+        threshold=0
+    )
+    
+    
     #visualize_prediction(image='/Users/kristofferkjaer/Desktop/DTU_masters/F25/ABA/advanced_ba_project/data/raw/Forest Segmented/images/3484_sat_24.jpg', threshold=0)
