@@ -1,19 +1,19 @@
+import datetime
 import os
+import random
 from pathlib import Path
 
 import hydra
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import numpy as np
-import random
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, jaccard_score
-from tqdm import tqdm
 import torch
-
 from omegaconf import DictConfig
 from PIL import Image
-import datetime
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+from sklearn.metrics import accuracy_score, f1_score, jaccard_score, precision_score, recall_score
 from torchvision import transforms
+from tqdm import tqdm
+
 from advanced_ba_project.data import ForestDataset, RoboflowTreeDataset, get_dataloaders
 
 
@@ -176,7 +176,7 @@ def main(cfg: DictConfig):
 
     return None
 
-def visualize_baseline_predictions_colored(val_loader, device, green_tree_detector, threshold=0.01, num_samples=10, seed=42):
+def visualize_baseline_pred_col(val_loader, device, green_tree_detector, threshold=0.01, num_samples=10, seed=42):
     """
     Visualizes baseline green detector masks overlaid in green/red with legend and fixed 5x2 layout.
 
@@ -190,7 +190,7 @@ def visualize_baseline_predictions_colored(val_loader, device, green_tree_detect
     """
     # Ensure exactly 10 samples for 5x2 layout
     num_samples = min(num_samples, 10)
-    
+
     # Seed for reproducibility
     random.seed(seed)
     torch.manual_seed(seed)
@@ -249,9 +249,9 @@ def visualize_baseline_predictions_colored(val_loader, device, green_tree_detect
     plt.savefig(save_path)
     print(f"[INFO] Baseline green overlay (5x2 layout) saved to {save_path}")
     plt.show()
-    
-    
-    
+
+
+
 def visualize_raw_and_baseline(
     green_tree_detector,
     dataset_name: str,
@@ -352,9 +352,9 @@ def visualize_raw_and_baseline(
 
         plt.tight_layout()
         plt.show()
-        
-        
-    
+
+
+
 def get_top_forest_ids(
     dataset_name: str,
     data_path: Path,
@@ -402,8 +402,8 @@ def get_top_forest_ids(
     return [idx for idx, _ in top_ids]
 
 if __name__ == "__main__":
-    
-    
+
+
     top_ids = get_top_forest_ids(
     dataset_name="roboflow",
     data_path=Path("data/raw/forest"),
@@ -421,13 +421,7 @@ if __name__ == "__main__":
     # roboflow_val_path = Path("data/raw/roboflow/valid")
     # roboflow_test_path = Path("data/raw/roboflow/test")
     # metadata_file = "meta_data.csv"
-    
-    # _, val_loader, _ = get_dataloaders(data_path, metadata_file, roboflow_train_path, roboflow_val_path, roboflow_test_path, 8, subset=False)
-    # #visualize_baseline_predictions(val_loader, device='mps', green_tree_detector=green_tree_detector, threshold=0.01, num_samples=5)
-    
-    
-    # visualize_baseline_predictions_colored(val_loader, device='mps', green_tree_detector=green_tree_detector, threshold=0, num_samples=5, seed=42)
-    
+
     visualize_raw_and_baseline(
         green_tree_detector=green_tree_detector,
         data_path=Path("data/raw/forest"),
@@ -436,10 +430,8 @@ if __name__ == "__main__":
         label_dir=Path("data/raw/roboflow/test/labelTxt"),
         num_images=5,
         img_dim=256,
-        device="mps",
-        indices=top_ids[5:],
+        device="cpu",
+        indices=[11,349,359,383,473],
         threshold=0
     )
-    
-    
-    #visualize_prediction(image='/Users/kristofferkjaer/Desktop/DTU_masters/F25/ABA/advanced_ba_project/data/raw/Forest Segmented/images/3484_sat_24.jpg', threshold=0)
+

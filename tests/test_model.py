@@ -1,5 +1,7 @@
 import torch
+
 from advanced_ba_project.model import UNet
+
 
 def test_unet_forward():
     # Initialize the model

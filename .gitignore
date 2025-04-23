@@ -185,3 +185,4 @@ reports/figures/*
 wandb/*
 outputs/*
 models/*
+.github/

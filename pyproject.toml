@@ -47,4 +47,9 @@ line-length = 120
 select = ["I", "N", "E", "W"]
 
 [tool.coverage.run]
-omit = ["tests/*"]
+source = ["advanced_ba_project"]
+omit = [
+    "tests/*",
+    "*/_remote_module_non_scriptable.py",
+    "*/site-packages/*"
+]

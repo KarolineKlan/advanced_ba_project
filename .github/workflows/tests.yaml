@@ -33,8 +33,8 @@ jobs:
           pip list
           pip install -e .
 
-
       - name: Run tests & coverage
         run: |
-          coverage run -m pytest tests/
+          export HYDRA_FULL_ERROR=1  # Helps avoid Hydra-related silent fails
+          coverage run --source=advanced_ba_project -m pytest tests/
           coverage report -m

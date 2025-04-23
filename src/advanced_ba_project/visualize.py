@@ -144,5 +144,5 @@ if __name__ == "__main__":
         num_images=5,
         img_dim=256,
         device="cpu",
-        indices=[10, 20, 30, 40, 50]  # Example indices to visualize
+        indices=[11,349,359,383,473],
     )
