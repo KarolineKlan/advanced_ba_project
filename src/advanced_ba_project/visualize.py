@@ -133,15 +133,16 @@ def visualize_raw_and_predicted(
 
 if __name__ == "__main__":
     # CLI Argument Parser
-    model = load_model("models/unet_model_iconic-sweep-16.pth", device="cpu")
+    model = load_model("models/unet_model_2025-04-16_11-07-12.pth", device="cpu")
 
     visualize_raw_and_predicted(
         model=model,
         data_path=Path("data/raw/forest"),
         dataset_name="roboflow",
-        image_dir=Path("data/raw/roboflow/train/images"),
-        label_dir=Path("data/raw/roboflow/train/labelTxt"),
+        image_dir=Path("data/raw/roboflow/test/images"),
+        label_dir=Path("data/raw/roboflow/test/labelTxt"),
         num_images=5,
         img_dim=256,
-        device="cpu"
+        device="cpu",
+        indices=[10, 20, 30, 40, 50]  # Example indices to visualize
     )
