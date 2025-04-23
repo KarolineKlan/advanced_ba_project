@@ -5,12 +5,15 @@ import hydra
 import numpy as np
 import random
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, jaccard_score
+from tqdm import tqdm
+import torch
 
 from omegaconf import DictConfig
 from PIL import Image
 import datetime
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+from advanced_ba_project.data import get_dataloaders
 
 def green_tree_detector(image_batch, threshold=0.1):
     """
