@@ -28,33 +28,34 @@ The project follows a cookiecutter directory structure, though not all component
 │   ├── dependabot.yaml
 │   └── workflows/
 │       └── tests.yaml
+├── API/
+|   └── Advanced_ba_API_notebook.ipynb
 ├── configs/                  # Configuration files
+|   |── config.yaml
+|   └── sweep.yaml
 ├── data/                     # Data directory
-│   ├── processed
-│   └── raw
-├── dockerfiles/              # Dockerfiles
-│   ├── api.Dockerfile
-│   └── train.Dockerfile
-├── docs/                     # Documentation
-│   ├── mkdocs.yml
-│   └── source/
-│       └── index.md
+│   |── raw/
+│   |    |── Forest Segmented/
+|   |    └── roboflow/
 ├── models/                   # Trained models
 ├── notebooks/                # Jupyter notebooks
+|   └── Explainer_Notebook.ipynb
+├── outputs/
 ├── reports/                  # Reports
 │   └── figures/
 ├── src/                      # Source code
 │   ├── project_name/
 │   │   ├── __init__.py
-│   │   ├── api.py
+│   │   ├── baseline.py
 │   │   ├── data.py
-│   │   ├── evaluate.py
-│   │   ├── models.py
+│   │   ├── logger.py
+│   │   ├── model.py
+│   │   ├── sweep.py
 │   │   ├── train.py
+│   │   ├── visualize_api.py
 │   │   └── visualize.py
 └── tests/                    # Tests
 │   ├── __init__.py
-│   ├── test_api.py
 │   ├── test_data.py
 │   └── test_model.py
 ├── .gitignore
