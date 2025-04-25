@@ -29,17 +29,17 @@ The project follows a cookiecutter directory structure, though not all component
 │   └── workflows/
 │       └── tests.yaml
 ├── API/
-|   └── Advanced_ba_API_notebook.ipynb
+│   └── Advanced_ba_API_notebook.ipynb
 ├── configs/                  # Configuration files
-|   |── config.yaml
-|   └── sweep.yaml
+│   |── config.yaml
+│   └── sweep.yaml
 ├── data/                     # Data directory
 │   |── raw/
 │   |    |── Forest Segmented/
-|   |    └── roboflow/
+│   |    └── roboflow/
 ├── models/                   # Trained models
 ├── notebooks/                # Jupyter notebooks
-|   └── Explainer_Notebook.ipynb
+│   └── Explainer_Notebook.ipynb
 ├── outputs/
 ├── reports/                  # Reports
 │   └── figures/
